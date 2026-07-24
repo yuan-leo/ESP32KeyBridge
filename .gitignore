@@ -1,4 +1,5 @@
 .DS_Store
+.vscode/
 
 # Python / pytest
 __pycache__/

@@ -126,8 +126,12 @@ private:
 // describe the lines (rows are driven one at a time, columns are read
 // back through pull-ups), setKeys() assigns the keys in row-major order —
 // the code layout mirrors the physical layout, so no coordinates or
-// indices appear. Diodes are optional (without them, ghost blocking
-// suppresses the phantom key when a 2x2 rectangle is pressed).
+// indices appear. Diodes are optional: without them, ghost blocking holds
+// back a new press that would complete an ambiguous 2x2 rectangle. All four
+// corners of such a rectangle read identically, so the real key cannot be
+// told from its phantom; rather than guess (and risk emitting the wrong
+// key), the ambiguous new press is held back until the rectangle resolves.
+// Add diodes for unrestricted N-key rollover.
 //
 // Scanning, debouncing, and ghost blocking run in a dedicated 1 kHz task
 // started on the first update(), so short taps are caught even when the
@@ -264,6 +268,11 @@ private:
   void scanOnce()
   {
     const uint32_t now = millis();
+
+    // Phase 1: read the whole matrix into one snapshot before deciding
+    // anything, so ghost detection sees a consistent picture and never a
+    // half-updated one.
+    uint16_t raw[MaxRows] = {};
     for (size_t r = 0; r < rowCount_; ++r)
     {
       // Set the output latch LOW before enabling the driver to avoid a
@@ -280,52 +289,63 @@ private:
         }
       }
       pinMode(rowPins_[r], INPUT);
+      raw[r] = rowRaw;
+    }
 
+    // Phase 2: debounce each key, then commit accepted transitions.
+    for (size_t r = 0; r < rowCount_; ++r)
+    {
       for (size_t c = 0; c < colCount_; ++c)
       {
         const uint16_t bit = static_cast<uint16_t>(1u << c);
-        const bool raw = (rowRaw & bit) != 0;
-        if (raw != ((rawBits_[r] & bit) != 0))
+        const bool rawPressed = (raw[r] & bit) != 0;
+        if (rawPressed != ((rawBits_[r] & bit) != 0))
         {
-          rawBits_[r] = raw ? (rawBits_[r] | bit) : (rawBits_[r] & ~bit);
+          rawBits_[r] = rawPressed ? (rawBits_[r] | bit) : (rawBits_[r] & ~bit);
           lastChangeMs_[r][c] = now;
         }
         const bool pressed = (pressedBits_[r] & bit) != 0;
-        if (pressed == raw || (now - lastChangeMs_[r][c]) < debounceMillis_)
+        if (pressed == rawPressed || (now - lastChangeMs_[r][c]) < debounceMillis_)
         {
           continue;
         }
-        if (raw && !hasDiodes_ && isGhost(r, c))
+        if (rawPressed && !hasDiodes_ && isGhost(r, c, raw))
         {
-          // Ambiguous 2x2 rectangle: hold the press back; it commits on a
-          // later scan once the rectangle resolves.
+          // Ambiguous 2x2 rectangle: hold this new press back rather than
+          // guess. It commits on a later scan once the rectangle resolves.
           continue;
         }
         portENTER_CRITICAL(&mux_);
-        pressedBits_[r] = raw ? (pressedBits_[r] | bit) : (pressedBits_[r] & ~bit);
+        pressedBits_[r] = rawPressed ? (pressedBits_[r] | bit) : (pressedBits_[r] & ~bit);
         portEXIT_CRITICAL(&mux_);
       }
     }
   }
 
   // Without diodes, three pressed corners of a rectangle make the fourth
-  // switch read as pressed too — the new press cannot be told apart from
-  // its phantom, so it is blocked while the rectangle exists.
-  bool isGhost(size_t row, size_t col) const
+  // switch read as pressed too, and then all four corners are electrically
+  // identical: a real press cannot be told apart from the phantom of the
+  // other three. Both new corners satisfy this test, so both are held back
+  // — we never emit a possibly-wrong key by picking one. Detection runs on
+  // the raw snapshot (not the committed state), so the outcome does not
+  // depend on the order the scan visits the corners; already-committed keys
+  // and releases are unaffected (only new presses reach this check).
+  bool isGhost(size_t row, size_t col, const uint16_t *raw) const
   {
+    const uint16_t colBit = static_cast<uint16_t>(1u << col);
     for (size_t r = 0; r < rowCount_; ++r)
     {
-      if (r == row || (pressedBits_[r] & (1u << col)) == 0)
+      if (r == row || (raw[r] & colBit) == 0)
       {
         continue;
       }
       for (size_t c = 0; c < colCount_; ++c)
       {
-        if (c == col || (pressedBits_[row] & (1u << c)) == 0)
+        if (c == col || (raw[row] & (1u << c)) == 0)
         {
           continue;
         }
-        if ((pressedBits_[r] & (1u << c)) != 0)
+        if ((raw[r] & (1u << c)) != 0)
         {
           return true;
         }

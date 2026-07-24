@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- Fix `GpioMatrixInputAdapter` ghost blocking (diodeless matrices,
+  `setHasDiodes(false)`). Detection now runs on a full raw snapshot of the
+  matrix instead of the incrementally-updated committed state, so it no
+  longer depends on the scan order. Previously, when a real key press and
+  its electrical phantom appeared in the same scan tick, the lower-index
+  corner was committed and the higher-index one blocked — which could emit
+  the phantom and drop the real key. Now every corner of an ambiguous 2x2
+  rectangle is held back symmetrically (a possibly-wrong key is never
+  emitted); the real press registers once the rectangle resolves. Matrices
+  with diodes are unaffected.
 - Add AltGr (Right Alt) support to the keyboard layout model, reaching
   feature parity with the shared 4-plane keymap tables of the related
   projects (see the layout conversion section of `docs/DATA_MODEL.ja.md`).
