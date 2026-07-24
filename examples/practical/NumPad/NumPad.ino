@@ -51,6 +51,14 @@ void setup()
       /* GPIO7 */     KeyboardUsage::Keypad0, KeyboardUsage::KeypadPeriod, KeyboardUsage::KeypadEnter,
   });
   // clang-format on
+
+  // Diodes are optional. Without them the adapter blocks ghosting, so
+  // reliable simultaneous presses are limited to 2 keys (an ambiguous 3rd
+  // key that would form a 2x2 rectangle is held back rather than risk
+  // emitting a phantom). If every switch has a diode, uncomment this to
+  // remove the block and allow unlimited N-key rollover:
+  // pad.setHasDiodes(true);
+
   bridge.addInput(pad);
   bridge.addOutput(pc);
 
