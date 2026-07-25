@@ -1,5 +1,7 @@
 # MediaKeys
 
+[English](README.md)
+
 メディアキーのないキーボードで、使っていないキー(F13〜F15 など)を音量・再生/停止キーにしたいとき用。
 
 - remap は種別またぎができるので、キーボードキー → Consumer キーの割り当てが 1 行ずつで書けます(F13 → 音量下げ、F14 → 音量上げ、F15 → 再生/停止)。
@@ -14,5 +16,3 @@ USB を 2 系統(Host + Device)使うため ESP32-P4 が必要です。
 - **USB Host(キーボード側)= FS 明示指定**。キーボードのコネクタが FS の CDC ピン(GPIO24/25)に配線されているボードでは、スケッチ内の PHY スワップ行のコメントアウトを外してください。
 
 P4 の USB ポートの詳細、表記と実配線が違うボードの注意(M5Stack Tab5 の事例)、HS を Host に使う場合の制約は [SwapCtrlCapsLock/README.ja.md](../SwapCtrlCapsLock/README.ja.md) を参照してください。
-
-> **注意**: 使用するアダプタ(USB Host キーボード入力 / USB Device 複合 HID 出力)は実装済みです(実機検証はこれから)。USB Host 入力には EspUsbHost 2.2.0 以上が必要です(`onKeyboardState`)。

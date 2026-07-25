@@ -1,5 +1,7 @@
 # SwapCtrlCapsLock
 
+[English](README.md)
+
 キーボードと PC の間に挟んで、CapsLock と Ctrl を入れ替えたいとき用。PC にもキーボードにも設定を入れません。
 
 - remap は 1 段の lookup で連鎖しないため、2 エントリの登録がそのまま「入れ替え」になります。長押し・同時押し・ホスト側オートリピートは保たれます。
@@ -38,5 +40,3 @@ USB Device を FS で使えるようにする変更は arduino-esp32 へプル�
 
 - **HS ポートの Host は HS / FS デバイスの混在に対応しません。** HS 対応 USB ハブの先に FS デバイス(一般的な USB キーボード等)をつないでも動作しません。
 - したがって HS 側を Host にする場合は、**ハブを使わず 1 デバイスのみを直結**してください。
-
-> **注意**: 使用するアダプタ(USB Host キーボード入力 / USB Device 複合 HID 出力)は実装済みです(実機検証はこれから)。USB Host 入力には EspUsbHost 2.2.0 以上が必要です(`onKeyboardState`)。

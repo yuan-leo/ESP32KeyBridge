@@ -1,8 +1,8 @@
 # Examples
 
-Every example is a **practical** one: a sketch for a real hardware setup, ready to flash as-is. They all share the same structure: 1) start the hardware, 2) wire the bridge, 3) build and apply the configuration.
+[日本語](README.ja.md)
 
-> **Note**: every adapter used by the examples is implemented (hardware verification in progress). See [../docs/ADAPTERS.ja.md](../docs/ADAPTERS.ja.md) for the roster.
+Every example is a **practical** one: a sketch for a real hardware setup, ready to flash as-is. They all share the same structure: 1) start the hardware, 2) wire the bridge, 3) build and apply the configuration.
 
 ## Practical Examples
 

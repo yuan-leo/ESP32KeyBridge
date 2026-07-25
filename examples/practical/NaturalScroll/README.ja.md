@@ -1,5 +1,7 @@
 # NaturalScroll
 
+[English](README.md)
+
 マウスのホイール方向を、PC の設定に手を入れずに反転したいとき用。設定を変えられない会社 PC・共有 PC でもマウス側(このブリッジ)で完結し、OS をまたいでも同じ操作感になります。
 
 - ホイールは相対軸として流れ、`config.setAxisScale(Axis::Wheel, -1)` の負のスケールで反転します。ボタンとポインタ移動はそのまま素通しです。
@@ -25,5 +27,3 @@ USB を 2 系統(Host + Device)使うため ESP32-P4 が必要です。
 - **USB Host(マウス側)= FS 明示指定**。マウスのコネクタが FS の CDC ピン(GPIO24/25)に配線されているボードでは、スケッチ内の PHY スワップ行のコメントアウトを外してください。
 
 P4 の USB ポートの詳細、表記と実配線が違うボードの注意(M5Stack Tab5 の事例)、HS を Host に使う場合の制約は [SwapCtrlCapsLock/README.ja.md](../SwapCtrlCapsLock/README.ja.md) を参照してください。
-
-> **注意**: 使用するアダプタ(USB Host マウス入力 / USB Device 複合 HID 出力)は実装済みです(実機検証はこれから)。

@@ -1,5 +1,7 @@
 # NavLayer
 
+[English](README.md)
+
 どんな USB キーボードにも「押している間だけのナビレイヤー」を足したいとき用。**CapsLock を押している間だけ H/J/K/L が矢印キー**(U/O が Home/End)になります。ノート PC の Fn レイヤーや vim の矢印と同じ感覚で、PC には何もインストールしません。
 
 - **レイヤーの仕組み**: CapsLock を仮想キー(`VirtualUsage::V1`)に remap し、その仮想キーで有効になるレイヤーを 1 枚用意します。レイヤーが有効な間だけ `layer.remap()` の差し替えが効き、登録の無いキーはそのまま通るので、CapsLock を押しながらでも普通のタイピングはできます。
@@ -24,5 +26,3 @@ USB を 2 系統(Host + Device)使うため ESP32-P4 が必要です(ESP32-S3 �
 - **USB Host = FS ポート**: キーボードを挿します。
 
 P4 の USB ポートの詳細(どのコネクタがどのピンに配線されているか、FS PHY のスワップが必要な場合、M5Stack Tab5 の事例など)は [../SwapCtrlCapsLock/README.ja.md](../SwapCtrlCapsLock/README.ja.md) が基準です。本 example も同じ配線に従います。
-
-> **注意**: 使用するアダプタ(USB Host キーボード入力 / USB Device 複合 HID 出力)は実装済みです(実機検証はこれから)。USB Host 入力には EspUsbHost 2.3.0 以上が必要です。

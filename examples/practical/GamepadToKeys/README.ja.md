@@ -1,5 +1,7 @@
 # GamepadToKeys
 
+[English](README.md)
+
 USB ゲームパッドで PC をキーボード操作したいとき用。**十字キーが矢印、フェイスボタンが Space / Enter / Escape / Backspace** になり、PC からは普通のキーボードに見えます。キオスク端末、リビングのメディア PC、キーボードしか受け付けないレトロエミュレータ、アクセシビリティ用途などに。
 
 - ゲームパッドアダプタは各コントロールを Key に写像し(種別は自由)、あとは普通のキーボード入力としてブリッジが処理します。remap やレイヤーを重ねることもできます。**割り当てたコントロールだけ**動きます。
@@ -30,5 +32,3 @@ USB を 2 系統(Host + Device)使うため ESP32-P4 が必要です(ESP32-S3 �
 - **USB Host = FS ポート**: ゲームパッドを挿します。
 
 P4 の USB ポートの詳細は [../SwapCtrlCapsLock/README.ja.md](../SwapCtrlCapsLock/README.ja.md) が基準です。
-
-> **注意**: 使用するアダプタ(USB Host ゲームパッド入力 / USB Device 複合 HID 出力)は実装済みです(実機検証はこれから)。USB Host 入力には EspUsbHost 2.3.0 以上が必要です。

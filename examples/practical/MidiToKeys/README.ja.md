@@ -1,5 +1,7 @@
 # MidiToKeys
 
+[English](README.md)
+
 USB MIDI コントローラのパッドや鍵盤を、キーボードのショートカットにしたいとき用。パッドを叩くと PC でキーが押されます。初期値では **F13〜F16**(アプリがマクロに割り当てやすく、他と衝突しないファンクションキー)と**メディアキー 2 つ**に割り当てています。PC からは普通のキーボードに見えるので、ドライバも MIDI ソフトも不要です。
 
 - **Note On(velocity > 0)= 押下、Note Off = 離す**。パッドを押し続ければキーも押しっぱなしになります。割り当てたノートだけが動作し、Key の種別は自由(keyboard / consumer / mouse ボタン / 仮想キー)。remap やレイヤーも重ねられます。
@@ -29,5 +31,3 @@ USB を 2 系統(Host + Device)使うため ESP32-P4 が必要です(ESP32-S3 �
 - **USB Host = FS ポート**: MIDI コントローラを挿します。
 
 P4 の USB ポートの詳細は [../SwapCtrlCapsLock/README.ja.md](../SwapCtrlCapsLock/README.ja.md) が基準です。
-
-> **注意**: 使用するアダプタ(USB Host MIDI 入力 / USB Device 複合 HID 出力)は実装済みです(実機検証はこれから)。USB Host 入力には EspUsbHost 2.3.0 以上が必要です。

@@ -1,5 +1,7 @@
 # MergeKeyboards
 
+[English](README.md)
+
 複数の入力デバイスを 1 つのキーボードとして PC に見せたいとき用。USB キーボードと GPIO の追加ボタンを統合し、複合 HID デバイスとして PC へ送ります。どちらの入力で押したキーもまとまって出るので、既存のキーボードに物理キーを増設する感覚で使えます。
 
 ## 2 種類の統合
@@ -28,5 +30,3 @@ USB を 2 系統(USB キーボード入力 + USB Device 出力)使うため ESP3
 - GPIO マクロボタン: 各ピンと GND の間にモーメンタリスイッチ(内部プルアップ、閉 = 押下)。
 
 P4 の USB ポートの詳細(コネクタとピンの対応、FS PHY スワップ、M5Stack Tab5 の事例)は [../SwapCtrlCapsLock/README.ja.md](../SwapCtrlCapsLock/README.ja.md) が基準です。
-
-> **注意**: 使用するアダプタ(USB Host キーボード入力 / GPIO キー入力 / USB Device 複合 HID 出力)は実装済みです(実機検証はこれから)。USB Host 入力には EspUsbHost 2.3.0 以上が必要です。

@@ -1,5 +1,7 @@
 # UsKeyboardOnJapanesePc
 
+[English](README.md)
+
 US 配列のキーボードやバーコードリーダーを、日本語(ja_jp)設定のままの PC で刻印どおり打ちたいとき用。OS 側の設定は変更しません。
 
 - 印字キーを刻印(en_us)で文字に戻し、PC 側レイアウト(ja_jp)の打鍵に再エンコードします。必要な Shift は自動で合成・抑制されます(`'` → Shift+7 など)。
@@ -16,5 +18,3 @@ USB を 2 系統(Host + Device)使うため ESP32-P4 が必要です。
 - **USB Host(キーボード側)= FS 明示指定**。キーボードのコネクタが FS の CDC ピン(GPIO24/25)に配線されているボードでは、スケッチ内の PHY スワップ行のコメントアウトを外してください。
 
 P4 の USB ポートの詳細、表記と実配線が違うボードの注意(M5Stack Tab5 の事例)、HS を Host に使う場合の制約は [SwapCtrlCapsLock/README.ja.md](../SwapCtrlCapsLock/README.ja.md) を参照してください。
-
-> **注意**: 使用するアダプタ(USB Host キーボード入力 / USB Device 複合 HID 出力)は実装済みです(実機検証はこれから)。USB Host 入力には EspUsbHost 2.2.0 以上が必要です(`onKeyboardState`)。

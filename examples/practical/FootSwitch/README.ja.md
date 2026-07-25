@@ -1,5 +1,7 @@
 # FootSwitch
 
+[English](README.md)
+
 フットスイッチや自作ボタンをキーボードとして PC につなぎたいとき用。手がふさがっている場面のワンアクション入力に使います。
 
 この example は 3 スイッチ構成です:
@@ -34,5 +36,3 @@ nav.remap(esp32keybridge::KeyboardUsage::K, esp32keybridge::KeyboardUsage::Up);
 
 - ESP32-S3 の USB OTG ポートを PC へ挿します(キーボードを含む複合 HID デバイスとして見えます)。
 - スイッチは各ピンと GND の間に接続します(閉で押下)。ピンは配線に合わせて変更してください。
-
-> **注意**: 使用するアダプタ(GPIO 入力 / USB Device 複合 HID 出力)は実装済みです(実機検証はこれから)。デバウンスは既定 5ms で、バウンドの大きいスイッチは `pedals.setDebounceMillis()` で延ばせます。
