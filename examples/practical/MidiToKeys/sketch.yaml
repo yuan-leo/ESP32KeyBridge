@@ -7,6 +7,6 @@ profiles:
     libraries:
       - dir: ../../../
       - EspUsbHost (2.7.0)
-      - EspUsbDevice (1.2.7)
+      - EspUsbDevice (2.0.0)
 
 default_profile: esp32p4
