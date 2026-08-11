@@ -2,6 +2,24 @@
 
 ## Unreleased
 
+- Rewrite the top-level READMEs as a user-facing library introduction (why,
+  feature table, adapter table, per-chip compatibility, quick start,
+  document index), replacing the pre-implementation "early-stage" text, and
+  add a bilingual `docs/README.md` documentation guide and an English
+  `docs/RELEASE_CHECKLIST.md`.
+- Add the shared release infrastructure the repository was missing:
+  `tools/bump_version.py` and `.github/workflows/release.yml` from
+  arduino-library-release-toolkit (the repository was not a target of that
+  toolkit's `sync_release_assets.py` because neither file existed),
+  `src/esp32keybridge_version.h` included from the core header, and a
+  `.github/workflows/tests.yml` running the two hardware-free suites with
+  the same commands as local development.
+- Add BLE peer tests covering both adapter boundaries on real hardware:
+  `ble_hid_keyboard` (a plain-EspBle BLE HID keyboard/mouse peripheral
+  driving the bridge input pipeline) and `ble_hid_output` (the bridge
+  output pipeline observed by a plain-EspBle HID Host). Bonds are cleared
+  at both ends before and after, and each file is one test function,
+  because a BLE link is stateful and expensive to establish.
 - Add BLE adapters (`ESP32KeyBridgeEspBle.h`, EspBle 1.2.0+), closing the
   last "waiting for a dedicated BLE library" gap in `docs/ADAPTERS.ja.md`.
   `EspBleHidOutputAdapter` is a HID over GATT peripheral whose report

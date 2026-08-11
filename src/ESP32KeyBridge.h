@@ -3,6 +3,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "esp32keybridge_version.h"
+
 // ESP32KeyBridge core.
 //
 // The core is portable C++ and depends only on <stdint.h> / <stddef.h>.

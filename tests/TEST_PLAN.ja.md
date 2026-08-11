@@ -46,15 +46,16 @@ ESP32-P4 は常時接続の自動テスト環境には含めません。P4 は U
 | 4 | 文字ストリーム / アクション列 / 相対値 / キーボードレイアウト記述 | 実装済み | | | | |
 | 5 | レイアウト変換((キー,Shift) 表 / Shift 合成 / on-off 切替) | 実装済み | | | | |
 | 6 | マウス(ボタン / 相対軸)と HID report builder(6KRO / rollover / consumer / mouse) | 実装済み | | | | |
-| 7 | Arduino runtime core smoke | | | 予定 | | |
+| 7 | Arduino runtime core smoke | 実装済み | | 実装済み(`unit/core_smoke --profile esp32s3`。host と同一スケッチ) | | |
 | 7 | USB Host keyboard / consumer input adapter | | 実装済み | | 実装済み(単キー / 修飾 / 多キー / キー+修飾 / consumer / LED / 切断解放) | 実 keyboard 確認 |
 | 7 | USB Host mouse input adapter | | | | 実装済み(X/Y 移動 / ホイール / 左右ボタン) | 実マウス確認 |
 | 7 | USB Host gamepad input adapter | | 実装済み | | 実装済み(ボタン / 多ボタン / ハット) | 実ゲームパッド確認 |
 | 7 | USB Host MIDI input adapter | | 実装済み | | 実装済み(Note On/Off / 2 ノート同時) | 実 MIDI 機器確認 |
 | 7 | USB Device 複合 output adapter | | 実装済み | | 実装済み(単キー / 修飾 / 6KRO / consumer / マウス ボタン・ホイール・XY / 複合同時 / LED→正本) | Host OS 認識 |
 | 7 | GPIO matrix / 単独キー input | 予定 | 予定 | | | 実装済み(matrix は実機確認済み) |
-| 7 | BLE HID output(peripheral) | | 実装済み(`UsbKeyboardToBle`) | 予定 | | pairing / Host OS 認識 |
-| 7 | BLE HID input(central: keyboard / mouse / gamepad) | | 実装済み(`BleKeyboardToUsb`) | 予定 | 予定(S3 2 台で peripheral 役 ⇄ central 役) | pairing / 実 BLE keyboard 確認 |
+| 7 | BLE HID output(peripheral) | | 実装済み(`UsbKeyboardToBle`) | | 実装済み(単キー / 修飾 / 6KRO / consumer / マウス ボタン・ホイール・XY / LED→正本) | 実 Host OS 認識 |
+| 7 | BLE HID input(central: keyboard / mouse) | | 実装済み(`BleKeyboardToUsb`) | | 実装済み(remap / キー+修飾 / 多キー / consumer / マウス ボタン・相対軸 / LED 転送 / 切断解放) | 実 BLE keyboard 確認 |
+| 7 | BLE HID input(central: gamepad) | | 実装済み | | 予定 | 実 BLE ゲームパッド確認 |
 | - | 設定の保存 / 読み込み・CDC serial 設定 reference example | | 予定 | 予定 | | WebSerial 確認 |
 
 ## Peer テストの位置付け
@@ -68,6 +69,8 @@ peer テストは、USB adapter が実 USB 経由で期待どおり event / stat
 - `usb_host_mouse`: Device 役 S3 が HID mouse report を送信し、Host 役 S3 の `EspUsbHostMouseInputAdapter` が X/Y 移動・ホイール・左右ボタンを input pipeline(相対軸・マウスボタン)へ流す。
 - `usb_host_gamepad`: Device 役 S3 が gamepad report を送信し、Host 役 S3 の `EspUsbHostGamepadInputAdapter` がボタン・ハットをキーに写像する。
 - `usb_host_midi`: Device 役 S3 が MIDI Note On/Off を送信し、Host 役 S3 の `EspUsbHostMidiInputAdapter` がノートをキーに写像する。
+- `ble_hid_keyboard`: Device 役 S3 が素の EspBle で BLE HID keyboard + mouse + consumer peripheral になり、Host 役 S3 の bridge が `EspBleHidHostKeyboardInputAdapter` / `EspBleHidHostMouseInputAdapter` で読む。remap / キー+修飾 / 多キースナップショット / consumer 統合 / マウス ボタン・相対軸 / 終端ホストの CapsLock → LED 転送 / 切断でホールドキー解放。
+- `ble_hid_output`: Device 役 S3 が bridge の出力パイプライン(ManualInput → `EspBleHidOutputAdapter`)を動かし、Host 役 S3 が素の EspBle HID Host で観測する。単キー / 修飾バイト / 6KRO / consumer / マウス ボタン・ホイール・XY / LED→lock 正本。
 - `usb_device_keyboard_output`: Device 役 S3 が output pipeline から複合 HID report を出力し、Host 役 S3 が USB Host で観測する。単キー / 修飾 / 6KRO / consumer / マウス ボタン・ホイール・XY / 複合同時(KEY_STATE→CONSUMER→MOUSE)/ LED output report 受信 → lock 正本。LED→正本は EspUsbHost 2.3.0 で report ID 付き複合デバイスへ SET_REPORT できるようになり有効化(2.2.0 では skip)。
 
 追加候補:
