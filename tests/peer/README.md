@@ -14,9 +14,11 @@
 
 `ble_hid_keyboard`: the device board is a BLE HID keyboard + mouse + consumer peripheral (plain `EspBle`) and the host board's bridge reads it through `EspBleHidHostKeyboardInputAdapter` / `EspBleHidHostMouseInputAdapter` — remap (A→B), key with modifier, multi-key snapshot, consumer merge, mouse buttons and relative axes, the terminal-host CapsLock toggle forwarded back to the keyboard LEDs (Kana-capable path), and a held key released when the link drops.
 
+`ble_hid_gamepad`: the device board is a BLE HID gamepad peripheral (plain `EspBle`) and the host board's `EspBleHidHostGamepadInputAdapter` maps buttons and the hat to keys — buttons → keys, several at once, hat-up, a diagonal pressing two directions, and a held button released when the link drops. It uses the same mapping as the USB gamepad test because both adapters run on the core's shared `GamepadKeyMap`; EspBle reports the hat as 0=centered plus 1-8 clockwise, so this also covers the nine-value branch of `decodeHat()`.
+
 `ble_hid_output`: the opposite boundary on BLE — the peer device board drives the bridge output pipeline (manual input → `EspBleHidOutputAdapter`) and the host DUT observes it as a plain `EspBle` HID Host: single key, modifier byte, six-key rollover, consumer usage, mouse button/wheel/XY, and the LED-to-lock path (the host writes an LED report and the output adapter becomes the lock authority).
 
-The BLE tests need no wiring — the link is radio — but use the same two boards. Each clears bonds on both sides at the start and the end, so pairing state from a previous run cannot change the outcome. Each is a single test function rather than several: a BLE link is stateful and expensive to set up, so pairing once and asserting along the way keeps the sequence deterministic (the same shape EspBle's own HID peer tests use).
+The three BLE tests need no wiring — the link is radio — but use the same two boards. Each clears bonds on both sides at the start and the end, so pairing state from a previous run cannot change the outcome. Each is a single test function rather than several: a BLE link is stateful and expensive to set up, so pairing once and asserting along the way keeps the sequence deterministic (the same shape EspBle's own HID peer tests use).
 
 Two-board ESP32-S3 hardware tests.
 

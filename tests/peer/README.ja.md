@@ -45,11 +45,12 @@ TEST_SERIAL_PORT_PEER_DEVICE_S3_PEER_DEVICE=/dev/ttyUSB1
 - `usb_host_midi`: Device board(USB MIDI)が Note On/Off を送り、Host board の `EspUsbHostMidiInputAdapter` がノートをキーに写像することを検証する(Note On=押下 / Off=解放、2 ノート同時)。
 - `usb_device_keyboard_output`: Device board 側でブリッジ出力パイプライン(ManualInput → 複合 HID 出力)から keyboard / consumer / mouse report を出力し、Host board が素の EspUsbHost で観測する。内容: 単キー、修飾単独、**6キーロールオーバー(A〜F)**、consumer usage、マウスボタン+ホイール、**マウス X/Y 相対移動**、**複合同時(キーボード+consumer+マウスを 1 フレームで出力し KEY_STATE→CONSUMER→MOUSE の順で観測)**、**LED → lock 正本(ホストが LED output report を送り、複合出力アダプタが lock 正本になって入力へ伝播)**。
 - `ble_hid_keyboard`: Device board(素の EspBle による BLE HID keyboard + mouse + consumer peripheral)を、Host board の bridge が `EspBleHidHostKeyboardInputAdapter` / `EspBleHidHostMouseInputAdapter` で読む。内容: remap(A→B)、キー+修飾、多キースナップショット、consumer の統合、マウスのボタンと相対軸、終端ホストの CapsLock トグル → キーボード LED 転送、**切断でホールド中のキーが解放される**こと。
+- `ble_hid_gamepad`: Device board(素の EspBle による BLE HID gamepad peripheral)のボタン/ハットを、Host board の `EspBleHidHostGamepadInputAdapter` がキーに写像することを検証する(ボタン → キー、多ボタン同時、ハット上、**斜め = 2 キー**、切断解放)。写像は USB 版と同じ `GamepadKeyMap` を通るので、USB gamepad テストと同じマッピングを使っている。EspBle のハットは 0=中立 + 1〜8 の 9 値エンコードなので、`decodeHat()` の 9 値分岐も一緒に通る。
 - `ble_hid_output`: BLE 側の逆方向の境界。Device board が bridge の出力パイプライン(ManualInput → `EspBleHidOutputAdapter`)を動かし、Host board が素の EspBle HID Host として観測する。内容: 単キー、修飾バイト、6 キーロールオーバー、consumer usage、マウス ボタン/ホイール/XY、**LED → lock 正本**(ホストが LED report を書き、出力アダプタが lock 正本になる)。
 
 > **補足**: LED → lock 正本テストは EspUsbHost 2.2.0 では skip していた(`setKeyboardLeds()` が boot 宣言 interface にしか届かず、複合 HID は 1 interface に report ID でマージされ boot 宣言を持たないため)。**2.3.0 で report descriptor の LED output report を検出し report ID 付き SET_REPORT を送れるようになり解消**、有効化した。
 
-> **補足**: BLE の 2 本は配線不要(無線リンク)ですが、使うボードは同じ 2 台です。前回実行のペアリング状態が結果を変えないよう、開始時と終了時に両側の bond を消します。また 1 ファイル 1 test function にしています — BLE リンクは状態を持ち確立にコストがかかるため、1 回ペアリングして途中で assert していくほうが決定的になるからです(EspBle 自身の HID peer test と同じ形)。
+> **補足**: BLE の 3 本は配線不要(無線リンク)ですが、使うボードは同じ 2 台です。前回実行のペアリング状態が結果を変えないよう、開始時と終了時に両側の bond を消します。また 1 ファイル 1 test function にしています — BLE リンクは状態を持ち確立にコストがかかるため、1 回ペアリングして途中で assert していくほうが決定的になるからです(EspBle 自身の HID peer test と同じ形)。
 
 ## 追加候補
 

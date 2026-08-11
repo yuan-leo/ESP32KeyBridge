@@ -14,12 +14,15 @@
   `src/esp32keybridge_version.h` included from the core header, and a
   `.github/workflows/tests.yml` running the two hardware-free suites with
   the same commands as local development.
-- Add BLE peer tests covering both adapter boundaries on real hardware:
+- Add BLE peer tests covering every BLE adapter on real hardware:
   `ble_hid_keyboard` (a plain-EspBle BLE HID keyboard/mouse peripheral
-  driving the bridge input pipeline) and `ble_hid_output` (the bridge
-  output pipeline observed by a plain-EspBle HID Host). Bonds are cleared
-  at both ends before and after, and each file is one test function,
-  because a BLE link is stateful and expensive to establish.
+  driving the bridge input pipeline), `ble_hid_gamepad` (a BLE HID
+  gamepad peripheral, using the same button/hat mapping as the USB
+  gamepad test since both adapters share the core's `GamepadKeyMap`),
+  and `ble_hid_output` (the bridge output pipeline observed by a
+  plain-EspBle HID Host). Bonds are cleared at both ends before and
+  after, and each file is one test function, because a BLE link is
+  stateful and expensive to establish.
 - Add BLE adapters (`ESP32KeyBridgeEspBle.h`, EspBle 1.2.0+), closing the
   last "waiting for a dedicated BLE library" gap in `docs/ADAPTERS.ja.md`.
   `EspBleHidOutputAdapter` is a HID over GATT peripheral whose report
