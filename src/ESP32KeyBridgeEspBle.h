@@ -210,8 +210,9 @@ public:
   // Keyboard connections tracked simultaneously; reports from further ones
   // are ignored.
   static constexpr size_t MaxKeyboards = 4;
-  // Simultaneously held consumer usages across all peers.
-  static constexpr size_t MaxConsumerKeys = 8;
+  // Connections holding a consumer usage. One entry per connection, not per
+  // usage: the HOGP consumer report carries a single usage at a time.
+  static constexpr size_t MaxConsumerSources = 4;
 
   explicit EspBleHidHostKeyboardInputAdapter(EspBle &ble) : ble_(ble) {}
 
@@ -318,38 +319,45 @@ private:
     }
   }
 
+  // The HOGP consumer report carries one 16-bit usage at a time, so the event
+  // reports the connection's *new* usage and 0 means "nothing held". A release
+  // therefore arrives as usage 0 rather than as the usage that was let go —
+  // unlike EspUsbHost, whose consumer event names the released usage. So this
+  // replaces the connection's entry instead of looking for a matching usage
+  // to remove; matching on the usage would never find one and the key would
+  // stay stuck.
   void handleConsumer(const EspBleHidConsumerControlEvent &event)
   {
-    if (event.released)
+    size_t index = consumerCount_;
+    for (size_t i = 0; i < consumerCount_; ++i)
     {
-      for (size_t i = 0; i < consumerCount_; ++i)
+      if (consumer_[i].connectionId == event.connectionId)
       {
-        if (consumer_[i].connectionId == event.connectionId && consumer_[i].usage == event.usage)
-        {
-          consumer_[i] = consumer_[consumerCount_ - 1];
-          --consumerCount_;
-          break;
-        }
+        index = i;
+        break;
       }
     }
-    if (event.pressed && event.usage != 0 && consumerCount_ < MaxConsumerKeys)
+
+    if (event.usage == 0)
     {
-      bool held = false;
-      for (size_t i = 0; i < consumerCount_; ++i)
+      if (index < consumerCount_)
       {
-        if (consumer_[i].connectionId == event.connectionId && consumer_[i].usage == event.usage)
-        {
-          held = true;
-          break;
-        }
+        consumer_[index] = consumer_[consumerCount_ - 1];
+        --consumerCount_;
       }
-      if (!held)
-      {
-        consumer_[consumerCount_].connectionId = event.connectionId;
-        consumer_[consumerCount_].usage = event.usage;
-        ++consumerCount_;
-      }
+      return;
     }
+
+    if (index == consumerCount_)
+    {
+      if (consumerCount_ >= MaxConsumerSources)
+      {
+        return;
+      }
+      index = consumerCount_++;
+      consumer_[index].connectionId = event.connectionId;
+    }
+    consumer_[index].usage = event.usage;
   }
 
   // Any connection, not only keyboards.
@@ -382,7 +390,7 @@ private:
   bool connected_ = false;
   Keyboard keyboards_[MaxKeyboards];
   size_t keyboardCount_ = 0;
-  ConsumerEntry consumer_[MaxConsumerKeys];
+  ConsumerEntry consumer_[MaxConsumerSources];
   size_t consumerCount_ = 0;
 };
 
