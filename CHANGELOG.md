@@ -2,6 +2,44 @@
 
 ## Unreleased
 
+- Add BLE adapters (`ESP32KeyBridgeEspBle.h`, EspBle 1.2.0+), closing the
+  last "waiting for a dedicated BLE library" gap in `docs/ADAPTERS.ja.md`.
+  `EspBleHidOutputAdapter` is a HID over GATT peripheral whose report
+  formats are identical to the USB Device output (6KRO keyboard, one 16-bit
+  consumer usage, 8 buttons + X/Y/Wheel mouse), including LED-output-report
+  lock authority; `EspBleHidHostKeyboardInputAdapter` /
+  `EspBleHidHostMouseInputAdapter` /
+  `EspBleHidHostGamepadInputAdapter` read BLE keyboards, mice and gamepads
+  as a central. Because BLE covers one side of a bridge without USB, the two
+  new examples (`UsbKeyboardToBle`, `BleKeyboardToUsb`) run on a
+  single-USB ESP32-S3 rather than needing an ESP32-P4. Connection setup
+  (scan / connect / pair / discover) stays with the sketch; the adapters
+  only consume HID reports. Unlike the USB Host path, the BLE keyboard LED
+  forward also carries the JIS Kana LED.
+- Fix the build against current EspUsbHost: `EspUsbHostKeyboardState::keys`
+  was renamed to `bitmap` (matching `changedBitmap`, and now the same name
+  in all three libraries).
+- Subscribe through the multi-listener API (`add*Listener()`, EspUsbHost
+  2.6.0+) instead of the single-slot `on*()` hooks, and drop the internal
+  per-stack hub that existed only to share those slots (~160 lines). Each
+  adapter now owns its own listener ids and releases them in its
+  destructor. **A sketch may again use every `on*()` hook itself** — the
+  previous "do not set `onKeyboardState` / `onConsumerControl` / `onMouse` /
+  `onDeviceDisconnected`" restriction is gone. The one slot the adapters
+  still take is the keyboard LED output report, which is single-slot by
+  design in all three libraries; read `ledState()` instead.
+- Read the host lock state from `EspUsbDeviceHidKeyboard::ledState()` rather
+  than decoding the raw LED byte in the adapter, so the bit meanings are
+  defined in exactly one place (the library).
+- Feed the `Pan` axis from `EspUsbHostMouseEvent::pan`, so a mouse with a
+  horizontal wheel / tilt now produces `Axis::Pan` deltas instead of
+  nothing. HID output adapters still drop Pan (neither the boot mouse report
+  nor the HOGP mouse report has the field), but an axis-consuming sketch or
+  a custom output can use it.
+- Move gamepad button/hat mapping into the core as `GamepadKeyMap`
+  (`mapButton()` / `mapHat()` / `addKeys()`, plus the pure `decodeHat()` and
+  the report-field reduction `decodeFields()`), and build both the USB and
+  BLE gamepad adapters on it, so the two cannot drift apart.
 - Fix `GpioMatrixInputAdapter` ghost blocking (diodeless matrices,
   `setHasDiodes(false)`). Detection now runs on a full raw snapshot of the
   matrix instead of the incrementally-updated committed state, so it no

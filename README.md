@@ -12,7 +12,7 @@ The library is intended to separate:
 - transformation logic, such as keycode mapping, layers, macros, disabled keys, swapped keys, and Consumer Key handling;
 - output adapters, such as USB Device, Bluetooth, UART, network, and GPIO.
 
-The core does not depend on a specific transport, storage backend, configuration format, or UI. It is written as portable C++ with no dependency on Arduino, ESP-IDF, or other platform APIs; all hardware-specific code lives in the adapter layer, which acts as the HAL. USB adapters may use `EspUsbHost` and `EspUsbDevice`, and WebSerial configuration is planned as a reference example rather than a core requirement.
+The core does not depend on a specific transport, storage backend, configuration format, or UI. It is written as portable C++ with no dependency on Arduino, ESP-IDF, or other platform APIs; all hardware-specific code lives in the adapter layer, which acts as the HAL. Adapters may use `EspUsbHost`, `EspUsbDevice`, and `EspBle`, and WebSerial configuration is planned as a reference example rather than a core requirement.
 
 Initial development should start with small core APIs that can be tested without hardware, then add hardware-backed adapters incrementally.
 

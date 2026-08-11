@@ -309,6 +309,51 @@ const char *keyKindName(KeyKind kind)
   return "unknown";
 }
 
+void GamepadKeyMap::addKeys(KeySet &keys, uint32_t buttons, int8_t hat) const
+{
+  for (size_t bit = 0; bit < MaxButtons; ++bit)
+  {
+    if ((buttons & (1u << bit)) != 0 && isValid(buttonKeys_[bit]))
+    {
+      keys.press(buttonKeys_[bit]);
+    }
+  }
+
+  // Directions run clockwise from up, so a diagonal is the two neighbours.
+  bool up = false;
+  bool down = false;
+  bool left = false;
+  bool right = false;
+  switch (hat)
+  {
+  case 0: up = true; break;
+  case 1: up = true; right = true; break;
+  case 2: right = true; break;
+  case 3: down = true; right = true; break;
+  case 4: down = true; break;
+  case 5: down = true; left = true; break;
+  case 6: left = true; break;
+  case 7: up = true; left = true; break;
+  default: break;
+  }
+  if (up && isValid(hatUp_))
+  {
+    keys.press(hatUp_);
+  }
+  if (down && isValid(hatDown_))
+  {
+    keys.press(hatDown_);
+  }
+  if (left && isValid(hatLeft_))
+  {
+    keys.press(hatLeft_);
+  }
+  if (right && isValid(hatRight_))
+  {
+    keys.press(hatRight_);
+  }
+}
+
 bool isKeyboardModifier(Key key)
 {
   return key.kind == KeyKind::Keyboard && key.code >= kKeyboardModifierFirst &&

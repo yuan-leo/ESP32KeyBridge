@@ -7,6 +7,7 @@ examples はすべて**実用例**です。実ハードウェア構成でその�
 ## Practical Examples
 
 - `BarcodeToText`: USB HID バーコードリーダーをシリアルの文字列に変換したいとき。ESP32-S3 + USB Host。
+- `BleKeyboardToUsb`: Bluetooth キーボード(とマウス)を、ペアリングできない機器 — BIOS、KVM、ゲーム機 — で使いたいとき。ESP32-S3 + BLE HID Host/USB Device。
 - `FootSwitch`: フットスイッチや自作ボタンで定型文入力・メディア操作・ページ送りをしたいとき。ESP32-S3 + GPIO。
 - `GamepadToKeys`: USB ゲームパッドで PC をキーボード操作(十字=矢印、ボタン=Space/Enter など)したいとき。ESP32-P4 + USB Host/Device。
 - `KeyMonitor`: 入力ハードのブリングアップ・監視用に、ブリッジ出力をシリアルに表示したいとき。ESP32-S3 + GPIO。
@@ -22,6 +23,7 @@ examples はすべて**実用例**です。実ハードウェア構成でその�
 - `SwapCtrlCapsLock`: キーボードと PC の間に挟んで、両方の設定を変えずに CapsLock と Ctrl を入れ替えたいとき。ESP32-P4。**P4 の USB ポート事情の説明はここが基準です。**
 - `TouchButtons`: 自作インプットアダプタの書き方を知りたいとき(題材 = ESP32-S3 内蔵の静電容量タッチをボタンに)。ESP32-S3。
 - `UsKeyboardOnJapanesePc`: US 配列キーボードやバーコードリーダーを、日本語設定のままの PC で刻印どおり打ちたいとき。ESP32-P4。
+- `UsbKeyboardToBle`: 有線 USB キーボードを無線化したいとき(PC / タブレット / スマートフォンからは Bluetooth キーボードに見える)。ESP32-S3 + USB Host/BLE HID。
 - `VolumeKnob`: 手元に物理的な音量つまみが欲しいとき(ロータリーエンコーダ。スクロールダイヤルにも)。ESP32-S3 + GPIO。
 
 ## 自作の入出力をつなぎたいとき
@@ -35,4 +37,4 @@ examples はすべて**実用例**です。実ハードウェア構成でその�
 
 ## 追加候補
 
-- BLE⇄USB 変換(BleToUsb・BLE マウス): BLE は専用ライブラリ(central + peripheral 両役、NimBLE ベース、クラシック非対応)を別途作成し、完成までこのライブラリでは対応しない方針。
+- BLE ゲームパッドをキーに: `EspBleHidHostGamepadInputAdapter` は実装済み(`GamepadToKeys` と同じ写像)ですが、専用の example はまだありません。

@@ -43,7 +43,9 @@ USB Host / USB Device、GPIO、BLE、UART、WebSerial、NVS、JSON などは cor
 時間・割り込み・タスクは**アダプタの内側に閉じ込め**、core と `update()` の呼び出しコンテキストは単一のまま保ちます。
 
 - サンプリングの時間精度(マトリクスのスキャン周期、デバウンス、エンコーダのエッジ取りこぼし防止)は、アダプタ内部の task / ISR / ペリフェラルが担保する。実装: GPIO マトリクスは専用 task で 1kHz スキャン(デバウンス・ゴースト判定込み)、ロータリーエンコーダは PCNT(パルスカウンタ)ペリフェラルでハードウェア計数し `update()` でカウンタ差分を読む(ISR 不要)。
-- USB Host / USB Device / BLE はスタック側の task が既に存在する。アダプタはコールバックで受けたイベントを critical section 越しの共有状態(または内部キュー)へ引き渡す。
+- USB Host / USB Device / BLE はスタック側の task が既に存在する。ただし**利用者コールバックがどのコンテキストで走るかはスタックごとに違う**ので、引き渡し方もそれに合わせる。
+  - EspUsbHost / EspUsbDevice: コールバックはスタックの task から走る。アダプタは critical section 越しの共有状態へ引き渡す。
+  - EspBle: スタック task はイベントをキューへ積むだけで、利用者コールバックは `EspBle::update()` を呼んだコンテキストから配送される。したがってアダプタ側の同期は不要で、代わりに**スケッチが `ble.update()` を `bridge.update()` と同じコンテキストで呼ぶ**ことが前提になる。
 - アダプタの責務は「内部の並行処理から `update()` 呼び出しコンテキストへのスレッドセーフな引き渡し」まで。押下集合への反映・変換・出力はすべて `update()` の単一コンテキストで行う。
 - この分担により、スケッチの loop が他処理で詰まっても入力の取りこぼしは起きない(アダプタ内で確定済み)。遅れるのは変換と出力だけ。**例外は `GpioKeyInputAdapter`**(サンプリングが `update()` 内 = loop レート依存)で、ペダル・ボタンのような押下の長い入力専用と割り切っている。アダプタごとの一覧は [ADAPTERS.ja.md](ADAPTERS.ja.md) の「update() 頻度と取りこぼし耐性」を参照。
 - ブリッジ自身を task で自動駆動する仕組みは core には入れない(排他が `applyConfig()` / `typeText()` へ波及するため)。必要になれば Arduino 層の opt-in ラッパーとして追加する([DECISIONS.ja.md](DECISIONS.ja.md) 将来メモ)。

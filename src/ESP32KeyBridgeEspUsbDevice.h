@@ -27,14 +27,13 @@ public:
   explicit EspUsbDeviceHidOutputAdapter(EspUsbDevice &usb)
       : usb_(usb), keyboard_(usb), consumer_(usb), mouse_(usb)
   {
-    // Fires from the TinyUSB task: publish the raw LED byte for the
-    // update() context to decode in getLockState().
+    // The LED value itself is polled from keyboard_.ledState(), which the
+    // library keeps updated whether or not a callback is installed. This
+    // hook only records that the host has spoken at least once, which
+    // ledState() cannot express (no report yet and "all LEDs off" look the
+    // same). Fires from the TinyUSB task.
     keyboard_.onOutputReport(
-        [this](const EspUsbDeviceHidKeyboardOutputReport &report)
-        {
-          hostLeds_ = report.leds;
-          ledSeen_ = true;
-        });
+        [this](const EspUsbDeviceHidKeyboardOutputReport &) { ledSeen_ = true; });
   }
 
   // Packs the key set into keyboard, consumer, and mouse-button reports.
@@ -59,11 +58,13 @@ public:
     {
       return false;
     }
-    const uint8_t leds = hostLeds_;
-    out.numLock = (leds & ESP_USB_DEVICE_KEYBOARD_LED_NUM_LOCK) != 0;
-    out.capsLock = (leds & ESP_USB_DEVICE_KEYBOARD_LED_CAPS_LOCK) != 0;
-    out.scrollLock = (leds & ESP_USB_DEVICE_KEYBOARD_LED_SCROLL_LOCK) != 0;
-    out.kana = (leds & ESP_USB_DEVICE_KEYBOARD_LED_KANA) != 0;
+    // ledState() returns by value from one atomic read, so the flags can
+    // never be a torn mix of two host writes.
+    const EspUsbDeviceHidKeyboardOutputReport report = keyboard_.ledState();
+    out.numLock = report.numLock;
+    out.capsLock = report.capsLock;
+    out.scrollLock = report.scrollLock;
+    out.kana = report.kana;
     return true;
   }
 
@@ -155,7 +156,6 @@ private:
   bool consumerPending_ = false;
   uint8_t lastMouseButtons_ = 0;
   int32_t pendingAxis_[kAxisCount] = {};
-  volatile uint8_t hostLeds_ = 0;
   volatile bool ledSeen_ = false;
 };
 

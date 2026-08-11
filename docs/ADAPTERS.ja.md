@@ -10,14 +10,16 @@
 |---|---|---|---|---|
 | `ManualInputAdapter` | `ESP32KeyBridge.h`(core) | なし | **実装済み** | `press()` / `release()` で論理押下を注入。相対値(`addAxisDelta`)、切断模擬、LockState 受信の記録。自作入力の最小リファレンス |
 | `EspUsbHostKeyboardInputAdapter` | `ESP32KeyBridgeEspUsbHost.h` | EspUsbHost 2.3.0+ | **実装済み(実機検証待ち)** | USB キーボード(スタック上の全キーボードを合算、最大 4 台。consumer キー = メディアキーやリモコンも合算、同時 8 usage)。`onKeyboardState` の 256-bit スナップショット(boot / report-ID boot / NKRO 共通、修飾キー単独変化含む)を KeySet に写像。boot のロールオーバーエラーコード(usage 0x01〜0x03)は除外。LockState を全キーボードの LED へ転送(num/caps/scroll。kana は EspUsbHost に転送手段なし。EspUsbHost 2.3.0 で report-ID/NKRO 専用キーボードへも LED を送れる = boot 宣言キーボードにしか送れなかった 2.2.0 の制限は解消)。presence は最初の report から、切断でそのデバイスのキーだけ解放 |
-| `EspUsbHostMouseInputAdapter` | `ESP32KeyBridgeEspUsbHost.h` | EspUsbHost | **実装済み(実機検証待ち)** | USB マウス(スタック上の全マウスを合算、最大 4 台)。ボタン = MouseButton キー(union)、移動・ホイール = 相対軸(合算)。presence は最初の report から(列挙照会 API が無いため)、切断でそのマウスのボタンだけ解放 |
+| `EspUsbHostMouseInputAdapter` | `ESP32KeyBridgeEspUsbHost.h` | EspUsbHost | **実装済み(実機検証待ち)** | USB マウス(スタック上の全マウスを合算、最大 4 台)。ボタン = MouseButton キー(union)、移動・ホイール・AC Pan(横ホイール/チルト。boot mouse report には無いので 0)= 相対軸(合算)。presence は最初の report から(列挙照会 API が無いため)、切断でそのマウスのボタンだけ解放 |
 | `EspUsbHostGamepadInputAdapter` | `ESP32KeyBridgeEspUsbHost.h` | EspUsbHost 2.3.0+ | **実装済み(実機検証待ち)** | USB ゲームパッド(入力専用)。`mapButton(番号, key)` で HID ボタン(1 始まり)を任意の Key に、`mapHat(up,down,left,right)` で十字/ハット(8 方向、斜めは 2 キー)を写像。登録したコントロールだけ出力。全パッド合算(最大 4 台)、切断でそのパッドだけ解放。アナログスティック/トリガは未対応(現状) |
 | `EspUsbHostMidiInputAdapter` | `ESP32KeyBridgeEspUsbHost.h` | EspUsbHost 2.3.0+ | **実装済み(実機検証待ち)** | USB MIDI(入力専用)。`mapNote(ノート, key)` で MIDI ノート(0-127)を任意の Key に写像(Note On=押下 / Note Off・vel0=解放)。`setChannel(ch)` で 1 ch に限定(既定 全 ch)。Note On/Off のみ使用(CC・ピッチベンド等は無視)。登録したノートだけ出力、全 MIDI デバイス切断で残ノートをクリア |
 | `GpioKeyInputAdapter` | `ESP32KeyBridgeGpio.h` | Arduino GPIO のみ | **実装済み(実機検証待ち)** | `addKey(pin, key, activeLow, pullUp)` で最大 `SOC_GPIO_PIN_COUNT` キー。デバウンス内蔵(既定 5ms、`setDebounceMillis()` で調整)。ピン設定は登録後最初の `update()`。loop レート(≈1kHz)のポーリングで足りる |
-| BLE キーボード / マウス入力 | - | 専用 BLE ライブラリ(作成予定) | **構想(別ライブラリ完成待ち)** | BLE キーボード / マウス(HID over GATT central)。専用 BLE ライブラリ(central + peripheral 両役を 1 本、NimBLE ベース、クラシック非対応)を別途作成し、完成までこのライブラリでは BLE 非対応 |
-| `GpioMatrixInputAdapter` | `ESP32KeyBridgeGpio.h` | Arduino GPIO のみ | **実装済み(実機検証待ち)** | キーマトリクス(最大 16 行 × 16 列。スキャン・デバウンス・ゴースト判定は専用タスク 1kHz = loop がブロックしても取りこぼさない。初回 `update()` で起動、非アクティブ行は high-Z)。配線は `setRowPins()` / `setColPins()`(行 = スキャン出力、列 = プルアップ入力)、キーマップは `setKeys()` に行優先の並びで渡す(見た目 = 物理配置、座標番号なし。歯抜けは無効キー `Key()`)。ダイオード任意(無しはゴーストブロック = 確実な同時押し 2 キーまで。`setHasDiodes(true)` で無制限)。デバウンス内蔵 |
+| `EspBleHidHostKeyboardInputAdapter` | `ESP32KeyBridgeEspBle.h` | EspBle 1.2.0+ | **実装済み(実機検証待ち)** | BLE キーボード(HID over GATT central。接続中の全キーボードを合算、最大 4 接続。consumer キーも合算、同時 8 usage)。`onKeyboardState` の 256-bit スナップショット(boot / report / NKRO 共通、修飾キー単独変化含む)を KeySet に写像 = USB Host 側と同じ経路。LockState を全キーボードの LED へ転送(**kana も転送可能** = USB Host 側にはない)。presence は最初の report から、切断でその接続のキーだけ解放 |
+| `EspBleHidHostMouseInputAdapter` | `ESP32KeyBridgeEspBle.h` | EspBle 1.2.0+ | **実装済み(実機検証待ち)** | BLE マウス(接続中の全マウスを合算、最大 4 接続)。ボタン = MouseButton キー(union)、移動・ホイール = 相対軸(合算)。HOGP のマウス report に AC Pan は無し |
+| `EspBleHidHostGamepadInputAdapter` | `ESP32KeyBridgeEspBle.h` | EspBle 1.2.0+ | **実装済み(実機検証待ち)** | BLE ゲームパッド。`mapButton()` / `mapHat()` の写像とハットのデコードは core の `GamepadKeyMap` を共有するので USB Host 側と完全に同じ挙動。全パッド合算(最大 4 接続)、切断でそのパッドだけ解放 |
+| `GpioMatrixInputAdapter` | `ESP32KeyBridgeGpio.h` | Arduino GPIO のみ | **実装済み(実機検証済み)** | キーマトリクス(最大 16 行 × 16 列。スキャン・デバウンス・ゴースト判定は専用タスク 1kHz = loop がブロックしても取りこぼさない。初回 `update()` で起動、非アクティブ行は high-Z)。配線は `setRowPins()` / `setColPins()`(行 = スキャン出力、列 = プルアップ入力)、キーマップは `setKeys()` に行優先の並びで渡す(見た目 = 物理配置、座標番号なし。歯抜けは無効キー `Key()`)。ダイオード任意(無しはゴーストブロック = 確実な同時押し 2 キーまで。`setHasDiodes(true)` で無制限)。デバウンス内蔵 |
 | `RotaryEncoderInputAdapter` | `ESP32KeyBridgeGpio.h` | PCNT(ESP-IDF 内蔵。`SOC_PCNT_SUPPORTED` のチップのみ) | **実装済み(実機検証待ち)** | ロータリーエンコーダ(PCNT ×4 直交デコード + グリッチフィルタ、割り込みなし、1 アダプタ 1 エンコーダ = チップの PCNT ユニット数まで)。1 ノッチ → キータップ(`mapToKeys(cw, ccw)`)または相対軸 ±1(`mapToAxis(axis)`)。`setPulsesPerDetent()`(既定 4 = EC11)。押し込みスイッチは GpioKeyInputAdapter で |
-| BLE マウス / IR / I2C・SPI エキスパンダ | - | - | **構想** | [DEVELOPMENT_PLAN.ja.md](DEVELOPMENT_PLAN.ja.md) の対応予定 |
+| IR / I2C・SPI エキスパンダ | - | - | **構想** | [DEVELOPMENT_PLAN.ja.md](DEVELOPMENT_PLAN.ja.md) の対応予定 |
 
 補足: 文字列入力(シリアル指令、シリアル型バーコードリーダー)はアダプタではなく、ブリッジの一級入力 `typeText()` / `typeChar()` を使います(example: SerialTextTyper)。
 
@@ -29,7 +31,7 @@
 | `EspUsbDeviceHidOutputAdapter` | `ESP32KeyBridgeEspUsbDevice.h` | EspUsbDevice | **実装済み(実機検証待ち)** | あり | 複合 HID デバイス(keyboard + consumer + mouse)。keyboard = boot 6KRO、consumer = 16bit usage × 1、相対軸 → mouse report(int8 飽和 + 繰り越し、Pan は非対応で破棄)。各 report は変化時のみ送信 + busy 時は次 update で再送。LED output report 受信 = lock 正本になれる(kana 含む)。`connected()` = ホストに mount 中 |
 | `TextOutputAdapter` | `ESP32KeyBridgeSerial.h` | なし(Arduino `Print` のみ) | **実装済み(実機検証待ち)** | なし | 文字対応出力。文字ストリーム(`writeText()`)だけを消費して `Print`(Serial / Serial1 / SoftwareSerial 等)へ UTF-8 で出す。文字源は `typeText()` 由来と、`convertLayout()` を設定した入力の押下由来(刻印デコード。Enter→改行 / Tab→タブは core が付与)。**出力側にレイアウトは持たない**(HID バーコード → 文字は入力側 convertLayout で決まる) |
 | `LogOutputAdapter` | `ESP32KeyBridgeSerial.h` | なし(Arduino `Print` のみ) | **実装済み(実機検証待ち)** | なし | デバッグ監視。押下集合の変化(`KEYS ...`)・タイプ文字(`TEXT ...`)・相対軸(`AXIS ...`)を人間可読で `Print` へ。実出力と併設 or 単独でブリングアップ |
-| BLE HID 出力 | - | 専用 BLE ライブラリ(作成予定) | **構想(別ライブラリ完成待ち)** | あり(予定) | BLE HID peripheral。入力側と同じ専用 BLE ライブラリに載せる |
+| `EspBleHidOutputAdapter` | `ESP32KeyBridgeEspBle.h` | EspBle 1.2.0+ | **実装済み(実機検証待ち)** | あり | BLE HID peripheral(HID over GATT)。複合 HID(keyboard + consumer + mouse)で、report の形式は USB Device 出力と同一(keyboard = boot 6KRO、consumer = 16bit usage × 1、mouse = ボタン 8 + X/Y/Wheel。Pan は非対応で破棄)。各 report は変化時のみ送信 + 送れなかったときは次 update で再送。LED output report 受信 = lock 正本になれる(kana 含む)。`connected()` = ホストが接続・暗号化済みで input report を subscribe 中 |
 
 ## PC からどう見えるか(USB デバイス構成)
 
@@ -47,6 +49,13 @@ USB Device 出力は 1 種類で、常に**複合 HID デバイス**として PC
 - **LED output report を受信**し、接続中は lock 状態の正本(の連鎖の候補)になります([DATA_MODEL.ja.md](DATA_MODEL.ja.md) の Lock 状態)。
 - rollover(32 キー)report builder は core にありますが、v1 の USB Device 出力は boot keyboard を基本とします(NKRO descriptor は将来のアダプタ拡張)。
 
+### BLE HID 出力から見た構成
+
+`EspBleHidOutputAdapter` も同じ考え方で、常に keyboard + consumer + mouse を 1 つの HID service に載せます(HID over GATT)。report の中身は USB Device 出力と同一なので、出力を差し替えても、両方同時に登録しても、キーの見え方は変わりません。相違点は 2 つだけです。
+
+- HID service の構成は `ble.begin()` で確定します(USB の `usbDevice.begin()` に対応)。したがって出力アダプタは `ble.begin()` より先に構築します。
+- `connected()` は「mount 済み」ではなく「接続 + 暗号化済み + input report を subscribe 済み」です。HOGP ではホストが subscribe するまで notification を出せないためで、ペアリング直後の一瞬は false になります。
+
 ## update() 頻度と取りこぼし耐性
 
 サンプリングの時間精度はアダプタが担保するのが原則です([CORE_DESIGN.ja.md](CORE_DESIGN.ja.md) の「時間・並行性の境界」)。`update()` の呼び出し間隔が影響するのは「反映(変換・出力)の遅れ」だけで、入力自体の取りこぼしは起きません — 例外は `GpioKeyInputAdapter` です。
@@ -57,6 +66,7 @@ USB Device 出力は 1 種類で、常に**複合 HID デバイス**として PC
 | `GpioMatrixInputAdapter` | 専用タスク 1kHz(スキャン・デバウンス・ゴースト判定込み。初回 `update()` で起動) | 取りこぼさない(押下状態はタスク側で確定済み。反映が遅れるだけ) |
 | `RotaryEncoderInputAdapter` | PCNT ペリフェラルのハードウェア計数 | 取りこぼさない(カウンタが溜めている。反映が遅れるだけ) |
 | `EspUsbHostKeyboardInputAdapter` / `EspUsbHostMouseInputAdapter` / `EspUsbHostGamepadInputAdapter` / `EspUsbHostMidiInputAdapter` | EspUsbHost のタスクからコールバック受け(critical section 越しの共有状態) | 取りこぼさない(状態スナップショット保持。マウスの移動量は合算。MIDI は Note On/Off 状態を保持) |
+| `EspBleHidHostKeyboardInputAdapter` / `EspBleHidHostMouseInputAdapter` / `EspBleHidHostGamepadInputAdapter` | EspBle のイベントキュー(配送は `ble.update()` のコンテキスト) | 取りこぼさない(スタックタスクがキューに積む。反映が遅れるだけ)。ただし **`ble.update()` を呼ばないと何も届かない** |
 | `ManualInputAdapter` | スケッチが直接 `press()`/`release()` | スケッチ次第(呼んだものはそのまま残る) |
 
 出力側(`EspUsbDeviceHidOutputAdapter` 等)は状態スナップショット方式なので、`update()` が遅れても「最後の状態」が送られるだけで壊れません(タイピング・マクロの打鍵速度は update 間隔に比例して遅くなります)。
@@ -101,8 +111,9 @@ core(`ESP32KeyBridge.h`)は依存ゼロ(純粋 C++)です。アダプタヘッ�
 
 | アダプタヘッダ | 依存ライブラリ | 入手 | sketch.yaml での指定例 |
 |---|---|---|---|
-| `ESP32KeyBridgeEspUsbHost.h` | [EspUsbHost](https://github.com/tanakamasayuki/EspUsbHost) 2.3.0 以上(2.2.0+ の `onKeyboardState` に加え、2.3.0 で report-ID/NKRO キーボードへの LED 送信) | Arduino Library Manager | `- EspUsbHost` |
-| `ESP32KeyBridgeEspUsbDevice.h` | [EspUsbDevice](https://github.com/tanakamasayuki/EspUsbDevice) | Arduino Library Manager | `- EspUsbDevice` |
+| `ESP32KeyBridgeEspUsbHost.h` | [EspUsbHost](https://github.com/tanakamasayuki/EspUsbHost) 2.6.0 以上(`onKeyboardState`、report-ID/NKRO キーボードへの LED 送信、および 2.6.0 の `addDeviceDisconnectedListener()` / `addMidiMessageListener()` = アダプタが単一スロット callback を占有しないための multi-listener API) | Arduino Library Manager | `- EspUsbHost` |
+| `ESP32KeyBridgeEspUsbDevice.h` | [EspUsbDevice](https://github.com/tanakamasayuki/EspUsbDevice) 2.0.0 以上(`ledState()`) | Arduino Library Manager | `- EspUsbDevice` |
+| `ESP32KeyBridgeEspBle.h` | [EspBle](https://github.com/tanakamasayuki/EspBle) 1.2.0 以上 | Arduino Library Manager | `- EspBle` |
 | `ESP32KeyBridgeGpio.h` | なし(Arduino GPIO のみ) | - | - |
 | `ESP32KeyBridgeSerial.h` | なし(Arduino `Print` のみ) | - | - |
 
@@ -113,5 +124,7 @@ core(`ESP32KeyBridge.h`)は依存ゼロ(純粋 C++)です。アダプタヘッ�
 
 - スタック(EspUsbHost / EspUsbDevice 等)は**スケッチが所有**し、スタック自身の config で起動する。アダプタはコンストラクタで参照を受けるだけで **`begin()` を持たない**(購読は初回 `update()`。USB device の interface 登録のみアダプタ構築時)。
 - 時間・割り込み・タスクはアダプタ内部に閉じ、`update()` の呼び出しコンテキストへスレッドセーフに引き渡す([CORE_DESIGN.ja.md](CORE_DESIGN.ja.md) の「時間・並行性の境界」)。
-- EspUsbHost のコールバックは単一スロット(後から設定した方で上書き)なので、アダプタは内部ハブ経由でスタックごとに 1 購読を共有する。**スケッチ側で `onKeyboardState` / `onConsumerControl` / `onMouse` / `onDeviceDisconnected` を設定しないこと**(アダプタのイベントが止まります)。イベント単位の `onKeyboard` はアダプタが使わないので、スケッチから自由に使えます。
+- **購読は multi-listener API(`add*Listener()`)で行う**。3 ライブラリとも「単一スロットの `on*()` は互換のまま最初に呼ばれ、`add*Listener()` は登録順に続く」という同じ契約になったので、アダプタは `on*()` を一切奪わない。**スケッチ側は `onKeyboardState` / `onMouse` / `onDeviceDisconnected` 等をこれまでどおり自由に使えます**(以前のハブ経由の共有と、それに伴う「設定しないこと」という制約は廃止)。アダプタは自分が取った listener id をデストラクタで解除する。
+  - 例外は**キーボード LED の output report** (`onOutputReport`)。3 ライブラリとも「LED は event ではなく state」という設計で単一スロットのままなので、出力アダプタ(`EspUsbDeviceHidOutputAdapter` / `EspBleHidOutputAdapter`)がこのスロットを取る。スケッチ側は代わりに `keyboard.ledState()` / `ble.hidKeyboard().ledState()` をポーリングする(値自体はコールバックの有無にかかわらず更新される)。
+- **コールバックの実行コンテキストはライブラリごとに違う**。EspUsbHost / EspUsbDevice は自前のタスクから呼ぶので、アダプタは critical section で `update()` のコンテキストへ渡す。EspBle は `EspBle::update()` を呼んだコンテキストから配送するので同期は不要 — 代わりに**スケッチが `ble.update()` を `bridge.update()` と同じコンテキストで呼ぶ**必要がある(`void loop() { ble.update(); bridge.update(); }`)。
 - 出力アダプタは表現できるものだけを出し、他は黙って捨てる(virtual キーは出力に出ない)。

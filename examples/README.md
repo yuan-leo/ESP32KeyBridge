@@ -7,6 +7,7 @@ Every example is a **practical** one: a sketch for a real hardware setup, ready 
 ## Practical Examples
 
 - `BarcodeToText`: turn a USB HID barcode reader into a stream of text on the serial port. ESP32-S3 + USB Host.
+- `BleKeyboardToUsb`: use a Bluetooth keyboard (and mouse) on a machine that will not pair with one — BIOS, KVM, console. ESP32-S3 + BLE HID Host/USB Device.
 - `FootSwitch`: type canned text, control media, or turn pages with foot switches or homemade buttons. ESP32-S3 + GPIO.
 - `GamepadToKeys`: control the PC as a keyboard with a USB gamepad (D-pad = arrows, buttons = Space/Enter/...). ESP32-P4 + USB Host/Device.
 - `KeyMonitor`: print the bridge output to the serial console to bring up or monitor input hardware. ESP32-S3 + GPIO.
@@ -22,6 +23,7 @@ Every example is a **practical** one: a sketch for a real hardware setup, ready 
 - `SwapCtrlCapsLock`: sit between a keyboard and a PC and swap CapsLock and Ctrl without changing either. ESP32-P4. **The P4 USB port details live in this example's README.**
 - `TouchButtons`: learn how to write your own input adapter (worked example: the ESP32-S3's built-in capacitive touch pads as buttons). ESP32-S3.
 - `UsKeyboardOnJapanesePc`: type as engraved on a US keyboard or barcode reader connected to a PC that stays on the ja_jp layout. ESP32-P4.
+- `UsbKeyboardToBle`: make a wired USB keyboard wireless — the PC / tablet / phone sees a Bluetooth keyboard. ESP32-S3 + USB Host/BLE HID.
 - `VolumeKnob`: a physical volume knob on your desk (rotary encoder; works as a scroll dial too). ESP32-S3 + GPIO.
 
 ## Connecting your own inputs and outputs
@@ -35,4 +37,4 @@ Start here:
 
 ## Candidates
 
-- BLE-to-USB (BleToUsb, BLE mouse): BLE will live in a dedicated library (both central and peripheral roles, NimBLE-based, no Bluetooth Classic); this library stays BLE-free until it exists.
+- BLE gamepad to keys: `EspBleHidHostGamepadInputAdapter` exists (same mapping as `GamepadToKeys`), but has no example of its own yet.

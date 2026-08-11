@@ -30,7 +30,7 @@ ESP32KeyBridge は、ESP32 シリーズで複数の入力デバイスから受�
 - Arduino-ESP32
 - ESP32 / ESP32-S2 / ESP32-S3 / ESP32-C3 / ESP32-C6 / ESP32-H2 / ESP32-P4
 
-各 SoC で利用できる USB、Bluetooth、GPIO などの機能差は、adapter 層で扱います。USB adapter の実装では `EspUsbHost` や `EspUsbDevice` を利用できますが、core はそれらに依存しません。
+各 SoC で利用できる USB、Bluetooth、GPIO などの機能差は、adapter 層で扱います。adapter の実装では `EspUsbHost` / `EspUsbDevice` / `EspBle` を利用できますが、core はそれらに依存しません。
 
 ## テスト
 

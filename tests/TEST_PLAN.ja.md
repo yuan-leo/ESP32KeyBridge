@@ -52,8 +52,9 @@ ESP32-P4 は常時接続の自動テスト環境には含めません。P4 は U
 | 7 | USB Host gamepad input adapter | | 実装済み | | 実装済み(ボタン / 多ボタン / ハット) | 実ゲームパッド確認 |
 | 7 | USB Host MIDI input adapter | | 実装済み | | 実装済み(Note On/Off / 2 ノート同時) | 実 MIDI 機器確認 |
 | 7 | USB Device 複合 output adapter | | 実装済み | | 実装済み(単キー / 修飾 / 6KRO / consumer / マウス ボタン・ホイール・XY / 複合同時 / LED→正本) | Host OS 認識 |
-| 7 | GPIO matrix / 単独キー input | 予定 | 予定 | | | 配線確認 |
-| 7 | BLE HID input / output | 予定 | 予定 | | | pairing 確認 |
+| 7 | GPIO matrix / 単独キー input | 予定 | 予定 | | | 実装済み(matrix は実機確認済み) |
+| 7 | BLE HID output(peripheral) | | 実装済み(`UsbKeyboardToBle`) | 予定 | | pairing / Host OS 認識 |
+| 7 | BLE HID input(central: keyboard / mouse / gamepad) | | 実装済み(`BleKeyboardToUsb`) | 予定 | 予定(S3 2 台で peripheral 役 ⇄ central 役) | pairing / 実 BLE keyboard 確認 |
 | - | 設定の保存 / 読み込み・CDC serial 設定 reference example | | 予定 | 予定 | | WebSerial 確認 |
 
 ## Peer テストの位置付け

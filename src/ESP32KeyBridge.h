@@ -394,6 +394,109 @@ enum class Axis : uint8_t
 constexpr size_t kAxisCount = 4;
 
 // ---------------------------------------------------------------------------
+// Gamepad control -> Key mapping
+// ---------------------------------------------------------------------------
+//
+// A gamepad control carries no meaning of its own: button numbers differ from
+// controller to controller, so the sketch decides what each one does. This
+// holds that decision together with the pure decoding rules around it, so
+// every gamepad adapter (USB Host, BLE HID Host) behaves identically. It is
+// part of the core because none of it touches hardware.
+
+class GamepadKeyMap
+{
+public:
+  static constexpr size_t MaxButtons = 32;
+
+  // HID usage pages / usages a gamepad report is read through.
+  static constexpr uint16_t ButtonUsagePage = 0x09;
+  static constexpr uint16_t DesktopUsagePage = 0x01;
+  static constexpr uint16_t HatSwitchUsage = 0x39;
+
+  // Hat direction: 0 = up, then clockwise in 45 degree steps; Centered = none.
+  static constexpr int8_t HatCentered = -1;
+
+  // Maps HID button `number` (1-based, as the controller reports it) to any
+  // Key. Returns false if the number is out of range; unmapped buttons
+  // produce nothing.
+  bool mapButton(uint8_t number, Key key)
+  {
+    if (number < 1 || number > MaxButtons)
+    {
+      return false;
+    }
+    buttonKeys_[number - 1] = key;
+    return true;
+  }
+
+  // Maps the four hat / D-pad directions; diagonals press the two neighbours.
+  void mapHat(Key up, Key down, Key left, Key right)
+  {
+    hatUp_ = up;
+    hatDown_ = down;
+    hatLeft_ = left;
+    hatRight_ = right;
+  }
+
+  // Decodes a hat switch field into a direction index.
+  //
+  // Hat encodings differ between controllers. Directions run clockwise from
+  // up. A value outside the logical range is "centered". When the logical
+  // range holds nine values (e.g. TinyUSB's 0..8), the first one is an
+  // explicit "centered" and the eight directions follow; otherwise the range
+  // is the eight directions (first = up).
+  static int8_t decodeHat(int32_t value, int32_t logicalMin, int32_t logicalMax)
+  {
+    if (value < logicalMin || value > logicalMax)
+    {
+      return HatCentered;
+    }
+    const int32_t count = logicalMax - logicalMin + 1;
+    const int32_t index = value - logicalMin;
+    if (count >= 9)
+    {
+      return (index >= 1 && index <= 8) ? static_cast<int8_t>(index - 1) : HatCentered;
+    }
+    return (index >= 0 && index <= 7) ? static_cast<int8_t>(index) : HatCentered;
+  }
+
+  // Reduces one report's decoded HID fields to a button bitmask and a hat
+  // direction. Templated on the field type so it serves any library whose
+  // field carries usagePage / usage / value / logicalMin / logicalMax
+  // (EspUsbHostHIDFieldValue, EspBleHidFieldValue, ...).
+  template <typename Field>
+  static void decodeFields(const Field *fields, size_t fieldCount, uint32_t &buttons, int8_t &hat)
+  {
+    buttons = 0;
+    hat = HatCentered;
+    for (size_t i = 0; i < fieldCount; ++i)
+    {
+      const Field &field = fields[i];
+      if (field.usagePage == ButtonUsagePage)
+      {
+        if (field.usage >= 1 && field.usage <= MaxButtons && field.value != 0)
+        {
+          buttons |= (1u << (field.usage - 1));
+        }
+      }
+      else if (field.usagePage == DesktopUsagePage && field.usage == HatSwitchUsage)
+      {
+        hat = decodeHat(field.value, field.logicalMin, field.logicalMax);
+      }
+    }
+  }
+
+  // Presses the mapped key of every set button bit and of the hat direction.
+  // Adds to the set rather than replacing it, so several gamepads merge by
+  // calling this once each.
+  void addKeys(KeySet &keys, uint32_t buttons, int8_t hat) const;
+
+private:
+  Key buttonKeys_[MaxButtons] = {};
+  Key hatUp_, hatDown_, hatLeft_, hatRight_;
+};
+
+// ---------------------------------------------------------------------------
 // Keyboard layout (character <-> key + shift table). Role-neutral: the same
 // description serves as an input device's engraving (InputConfig) and as
 // the declaration of how a host interprets keys (config.hostLayout).
