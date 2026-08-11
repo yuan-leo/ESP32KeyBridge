@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+## 1.0.0
 - Rewrite the top-level READMEs as a user-facing library introduction (why,
   feature table, adapter table, per-chip compatibility, quick start,
   document index), replacing the pre-implementation "early-stage" text, and
@@ -357,4 +358,3 @@
   typing, and relative-only mouse support. See `docs/DATA_MODEL.ja.md`,
   `docs/USE_CASES.ja.md`, and `docs/DECISIONS.ja.md`.
 - Start repository structure, documentation, and test plan.
-
