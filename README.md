@@ -45,7 +45,7 @@ Adapter headers are header-only, so a sketch pulls in a dependency only by inclu
 | `ESP32KeyBridgeGpio.h` | — (Arduino GPIO; the encoder uses PCNT) | Single keys, a scanned key matrix, a rotary encoder |
 | `ESP32KeyBridgeSerial.h` | — (Arduino `Print`) | Text output and a human-readable debug log |
 
-The full table with per-adapter behavior, `update()` timing tolerance, and USB device composition is in [docs/ADAPTERS.ja.md](docs/ADAPTERS.ja.md).
+The full table with per-adapter behavior, `update()` timing tolerance, and USB device composition is in [docs/ADAPTERS.md](docs/ADAPTERS.md).
 
 ## Compatibility
 
@@ -128,9 +128,10 @@ See the [examples index](examples/README.md) for the full list — every example
 
 Design documents are Japanese-only; the READMEs and the examples are bilingual.
 
-- [Adapter list, behavior, and dependencies](docs/ADAPTERS.ja.md)
-- [Data model: key identity, lock state, layout conversion](docs/DATA_MODEL.ja.md)
-- [Core design and the time / concurrency boundary](docs/CORE_DESIGN.ja.md)
+- [Beginner's guide (start here)](docs/GUIDE_BASICS.md)
+- [Adapter list, behavior, and dependencies](docs/ADAPTERS.md)
+- [Data model: key identity, lock state, layout conversion](docs/DATA_MODEL.md)
+- [Core design and the time / concurrency boundary](docs/CORE_DESIGN.md)
 - [Use cases the design was validated against](docs/USE_CASES.ja.md)
 - [Requirements](docs/REQUIREMENTS.ja.md)
 - [Design decision ledger](docs/DECISIONS.ja.md)

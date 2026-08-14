@@ -1,5 +1,7 @@
 # Core Design
 
+> English: [CORE_DESIGN.md](CORE_DESIGN.md)
+
 `ESP32KeyBridge` core は、特定の入出力方式に依存しないキーボード系入力の統合・変換エンジンです。中間データ表現の定義は [DATA_MODEL.ja.md](DATA_MODEL.ja.md) にあります。この文書はパイプラインとモジュール境界を定義します。
 
 USB Host / USB Device、GPIO、BLE、UART、WebSerial、NVS、JSON などは core の外側に置きます。必要な依存はアダプタまたは example が持ちます。

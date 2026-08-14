@@ -1,5 +1,7 @@
 # 中間データモデル
 
+> English: [DATA_MODEL.md](DATA_MODEL.md)
+
 この文書は、`ESP32KeyBridge` の中間データ表現を定義します。入力アダプタ、変換パイプライン、出力アダプタは、すべてここで定義する表現だけで接続します。
 
 ユースケースごとの検証記録は [USE_CASES.ja.md](USE_CASES.ja.md)、決定の経緯と状態は [DECISIONS.ja.md](DECISIONS.ja.md) を参照してください。

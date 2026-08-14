@@ -127,6 +127,7 @@ example の一覧は [examples/README.ja.md](examples/README.ja.md) にありま
 
 設計ドキュメントは日本語のみ、README と example は日英併記です。
 
+- [入門ガイド(初めて使う人向け)](docs/GUIDE_BASICS.ja.md)
 - [アダプタ一覧・挙動・依存](docs/ADAPTERS.ja.md)
 - [データモデル(キー同一性・lock 状態・レイアウト変換)](docs/DATA_MODEL.ja.md)
 - [core 設計と時間・並行性の境界](docs/CORE_DESIGN.ja.md)
