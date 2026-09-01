@@ -19,6 +19,8 @@
 | `EspBleHidHostKeyboardInputAdapter` | `ESP32KeyBridgeEspBle.h` | EspBle 1.2.0+ | **実装済み(実機検証済み: peer `ble_hid_keyboard`)** | BLE キーボード(HID over GATT central。接続中の全キーボードを合算、最大 4 接続。consumer キーも合算、1 接続あたり 1 usage = HOGP の consumer report が同時に 1 usage しか運ばないため)。`onKeyboardState` の 256-bit スナップショット(boot / report / NKRO 共通、修飾キー単独変化含む)を KeySet に写像 = USB Host 側と同じ経路。LockState を全キーボードの LED へ転送(**kana も転送可能** = USB Host 側にはない)。presence は最初の report から、切断でその接続のキーだけ解放。**consumer の解放イベントは EspUsbHost と意味が違う**(EspUsbHost は「離された usage」を報告するが、EspBle は「その接続の新しい usage」= 解放時は 0 を報告する)ので、アダプタは usage の一致を探すのではなく接続ごとのエントリを置き換える |
 | `EspBleHidHostMouseInputAdapter` | `ESP32KeyBridgeEspBle.h` | EspBle 1.2.0+ | **実装済み(実機検証済み: peer `ble_hid_keyboard`)** | BLE マウス(接続中の全マウスを合算、最大 4 接続)。ボタン = MouseButton キー(union)、移動・ホイール = 相対軸(合算)。HOGP のマウス report に AC Pan は無し |
 | `EspBleHidHostGamepadInputAdapter` | `ESP32KeyBridgeEspBle.h` | EspBle 1.2.0+ | **実装済み(実機検証済み: peer `ble_hid_gamepad`)** | BLE ゲームパッド。`mapButton()` / `mapHat()` の写像とハットのデコードは core の `GamepadKeyMap` を共有するので USB Host 側と完全に同じ挙動。全パッド合算(最大 4 接続)、切断でそのパッドだけ解放 |
+| `EspBleClassicHidHostKeyboardInputAdapter` | `ESP32KeyBridgeEspBleClassic.h` | EspBle 1.3.0+ | **実装済み(実機検証済み: peer `classic_hid_keyboard`)** | Bluetooth Classic HID Host キーボード(**無印 ESP32 のみ、1 接続**)。EspBleClassic が Report Descriptor から復号した 256-bit usage + modifier snapshot を KeySet に写像し、lock LED を相手へ返す。Classic Host は consumer report を標準復号しないためメディアキー入力は対象外。接続は sketch が address を指定して行う |
+| `EspBleClassicHidHostMouseInputAdapter` | `ESP32KeyBridgeEspBleClassic.h` | EspBle 1.3.0+ | **実装済み(実機検証済み: peer `classic_hid_keyboard`)** | Bluetooth Classic HID Host マウス(**無印 ESP32 のみ、1 接続**)。復号済みのボタン・X/Y・wheel を入力へ写像。AC Pan は無し |
 | `GpioMatrixInputAdapter` | `ESP32KeyBridgeGpio.h` | Arduino GPIO のみ | **実装済み(実機検証済み)** | キーマトリクス(最大 16 行 × 16 列。スキャン・デバウンス・ゴースト判定は専用タスク 1kHz = loop がブロックしても取りこぼさない。初回 `update()` で起動、非アクティブ行は high-Z)。配線は `setRowPins()` / `setColPins()`(行 = スキャン出力、列 = プルアップ入力)、キーマップは `setKeys()` に行優先の並びで渡す(見た目 = 物理配置、座標番号なし。歯抜けは無効キー `Key()`)。ダイオード任意(無しはゴーストブロック = 確実な同時押し 2 キーまで。`setHasDiodes(true)` で無制限)。デバウンス内蔵 |
 | `RotaryEncoderInputAdapter` | `ESP32KeyBridgeGpio.h` | PCNT(ESP-IDF 内蔵。`SOC_PCNT_SUPPORTED` のチップのみ) | **実装済み(実機検証待ち)** | ロータリーエンコーダ(PCNT ×4 直交デコード + グリッチフィルタ、割り込みなし、1 アダプタ 1 エンコーダ = チップの PCNT ユニット数まで)。1 ノッチ → キータップ(`mapToKeys(cw, ccw)`)または相対軸 ±1(`mapToAxis(axis)`)。`setPulsesPerDetent()`(既定 4 = EC11)。押し込みスイッチは GpioKeyInputAdapter で |
 | IR / I2C・SPI エキスパンダ | - | - | **構想** | [DEVELOPMENT_PLAN.ja.md](DEVELOPMENT_PLAN.ja.md) の対応予定 |
@@ -34,6 +36,7 @@
 | `TextOutputAdapter` | `ESP32KeyBridgeSerial.h` | なし(Arduino `Print` のみ) | **実装済み(実機検証待ち)** | なし | 文字対応出力。文字ストリーム(`writeText()`)だけを消費して `Print`(Serial / Serial1 / SoftwareSerial 等)へ UTF-8 で出す。文字源は `typeText()` 由来と、`convertLayout()` を設定した入力の押下由来(刻印デコード。Enter→改行 / Tab→タブは core が付与)。**出力側にレイアウトは持たない**(HID バーコード → 文字は入力側 convertLayout で決まる) |
 | `LogOutputAdapter` | `ESP32KeyBridgeSerial.h` | なし(Arduino `Print` のみ) | **実装済み(実機検証待ち)** | なし | デバッグ監視。押下集合の変化(`KEYS ...`)・タイプ文字(`TEXT ...`)・相対軸(`AXIS ...`)を人間可読で `Print` へ。実出力と併設 or 単独でブリングアップ |
 | `EspBleHidOutputAdapter` | `ESP32KeyBridgeEspBle.h` | EspBle 1.2.0+ | **実装済み(実機検証済み: peer `ble_hid_output`)** | あり | BLE HID peripheral(HID over GATT)。複合 HID(keyboard + consumer + mouse)で、report の形式は USB Device 出力と同一(keyboard = boot 6KRO、consumer = 16bit usage × 1、mouse = ボタン 8 + X/Y/Wheel。Pan は非対応で破棄)。各 report は変化時のみ送信 + 送れなかったときは次 update で再送。LED output report 受信 = lock 正本になれる(kana 含む)。`connected()` = ホストが接続・暗号化済みで input report を subscribe 中 |
+| `EspBleClassicHidOutputAdapter` | `ESP32KeyBridgeEspBleClassic.h` | EspBle 1.3.0+ | **実装済み(実機検証済み: peer `classic_hid_output`)** | あり | Bluetooth Classic HID Device(**無印 ESP32 のみ**)。BLE 出力と同じ keyboard 6KRO + consumer + mouse report。Classic 固有の SDP record 上限(Report Descriptor + identity 文字列で 214 byte)内に 3 profile を合成し、超過時は `bluetooth.begin()` が失敗。接続済み HID Host は 1 台 |
 
 ## PC からどう見えるか(USB デバイス構成)
 
@@ -58,6 +61,12 @@ USB Device 出力は 1 種類で、常に**複合 HID デバイス**として PC
 - HID service の構成は `ble.begin()` で確定します(USB の `usbDevice.begin()` に対応)。したがって出力アダプタは `ble.begin()` より先に構築します。
 - `connected()` は「mount 済み」ではなく「接続 + 暗号化済み + input report を subscribe 済み」です。HOGP ではホストが subscribe するまで notification を出せないためで、ペアリング直後の一瞬は false になります。
 
+### Bluetooth Classic HID 出力から見た構成
+
+`EspBleClassicHidOutputAdapter` も report の中身は同じで、keyboard + consumer + mouse を 1 台の Classic HID Device にします。構成は `bluetooth.begin()` で SDP に登録されるため、アダプタを先に構築します。BLE と違い、Report Descriptor と `EspBleClassicHidProfileConfig` の identity 文字列が 1 個の SDP record を共有し、合計 **214 byte** が上限です。既定文字列の 3 profile は収まりますが、長いカスタム文字列は `begin()` を失敗させます。
+
+Classic は address ベースで 1 Host と接続し、HOGP の GATT subscription はありません。したがって `connected()` は profile を構成済みかつ Classic HID Host が接続済み、という意味です。
+
 ## update() 頻度と取りこぼし耐性
 
 サンプリングの時間精度はアダプタが担保するのが原則です([CORE_DESIGN.ja.md](CORE_DESIGN.ja.md) の「時間・並行性の境界」)。`update()` の呼び出し間隔が影響するのは「反映(変換・出力)の遅れ」だけで、入力自体の取りこぼしは起きません — 例外は `GpioKeyInputAdapter` です。
@@ -69,6 +78,7 @@ USB Device 出力は 1 種類で、常に**複合 HID デバイス**として PC
 | `RotaryEncoderInputAdapter` | PCNT ペリフェラルのハードウェア計数 | 取りこぼさない(カウンタが溜めている。反映が遅れるだけ) |
 | `EspUsbHostKeyboardInputAdapter` / `EspUsbHostMouseInputAdapter` / `EspUsbHostGamepadInputAdapter` / `EspUsbHostMidiInputAdapter` | EspUsbHost のタスクからコールバック受け(critical section 越しの共有状態) | 取りこぼさない(状態スナップショット保持。マウスの移動量は合算。MIDI は Note On/Off 状態を保持) |
 | `EspBleHidHostKeyboardInputAdapter` / `EspBleHidHostMouseInputAdapter` / `EspBleHidHostGamepadInputAdapter` | EspBle のイベントキュー(配送は `ble.update()` のコンテキスト) | 取りこぼさない(スタックタスクがキューに積む。反映が遅れるだけ)。ただし **`ble.update()` を呼ばないと何も届かない** |
+| `EspBleClassicHidHostKeyboardInputAdapter` / `EspBleClassicHidHostMouseInputAdapter` | EspBleClassic のイベントキュー(配送は `bluetooth.update()` のコンテキスト) | 取りこぼさない(状態 / 相対量をアダプタが保持)。ただし **`bluetooth.update()` を呼ばないと何も届かない** |
 | `ManualInputAdapter` | スケッチが直接 `press()`/`release()` | スケッチ次第(呼んだものはそのまま残る) |
 
 出力側(`EspUsbDeviceHidOutputAdapter` 等)は状態スナップショット方式なので、`update()` が遅れても「最後の状態」が送られるだけで壊れません(タイピング・マクロの打鍵速度は update 間隔に比例して遅くなります)。
@@ -116,6 +126,7 @@ core(`ESP32KeyBridge.h`)は依存ゼロ(純粋 C++)です。アダプタヘッ�
 | `ESP32KeyBridgeEspUsbHost.h` | [EspUsbHost](https://github.com/tanakamasayuki/EspUsbHost) 2.6.0 以上(`onKeyboardState`、report-ID/NKRO キーボードへの LED 送信、および 2.6.0 の `addDeviceDisconnectedListener()` / `addMidiMessageListener()` = アダプタが単一スロット callback を占有しないための multi-listener API) | Arduino Library Manager | `- EspUsbHost` |
 | `ESP32KeyBridgeEspUsbDevice.h` | [EspUsbDevice](https://github.com/tanakamasayuki/EspUsbDevice) 2.0.0 以上(`ledState()`) | Arduino Library Manager | `- EspUsbDevice` |
 | `ESP32KeyBridgeEspBle.h` | [EspBle](https://github.com/tanakamasayuki/EspBle) 1.2.0 以上 | Arduino Library Manager | `- EspBle` |
+| `ESP32KeyBridgeEspBleClassic.h` | EspBle 1.3.0 以上(**無印 ESP32 + arduino-esp32 3.2.0 以上のみ**) | Arduino Library Manager | `- EspBle (1.3.0)` |
 | `ESP32KeyBridgeGpio.h` | なし(Arduino GPIO のみ) | - | - |
 | `ESP32KeyBridgeSerial.h` | なし(Arduino `Print` のみ) | - | - |
 
@@ -126,7 +137,7 @@ core(`ESP32KeyBridge.h`)は依存ゼロ(純粋 C++)です。アダプタヘッ�
 
 - スタック(EspUsbHost / EspUsbDevice 等)は**スケッチが所有**し、スタック自身の config で起動する。アダプタはコンストラクタで参照を受けるだけで **`begin()` を持たない**(購読は初回 `update()`。USB device の interface 登録のみアダプタ構築時)。
 - 時間・割り込み・タスクはアダプタ内部に閉じ、`update()` の呼び出しコンテキストへスレッドセーフに引き渡す([CORE_DESIGN.ja.md](CORE_DESIGN.ja.md) の「時間・並行性の境界」)。
-- **購読は multi-listener API(`add*Listener()`)で行う**。3 ライブラリとも「単一スロットの `on*()` は互換のまま最初に呼ばれ、`add*Listener()` は登録順に続く」という同じ契約になったので、アダプタは `on*()` を一切奪わない。**スケッチ側は `onKeyboardState` / `onMouse` / `onDeviceDisconnected` 等をこれまでどおり自由に使えます**(以前のハブ経由の共有と、それに伴う「設定しないこと」という制約は廃止)。アダプタは自分が取った listener id をデストラクタで解除する。
-  - 例外は**キーボード LED の output report** (`onOutputReport`)。3 ライブラリとも「LED は event ではなく state」という設計で単一スロットのままなので、出力アダプタ(`EspUsbDeviceHidOutputAdapter` / `EspBleHidOutputAdapter`)がこのスロットを取る。スケッチ側は代わりに `keyboard.ledState()` / `ble.hidKeyboard().ledState()` をポーリングする(値自体はコールバックの有無にかかわらず更新される)。
-- **コールバックの実行コンテキストはライブラリごとに違う**。EspUsbHost / EspUsbDevice は自前のタスクから呼ぶので、アダプタは critical section で `update()` のコンテキストへ渡す。EspBle は `EspBle::update()` を呼んだコンテキストから配送するので同期は不要 — 代わりに**スケッチが `ble.update()` を `bridge.update()` と同じコンテキストで呼ぶ**必要がある(`void loop() { ble.update(); bridge.update(); }`)。
+- BLE / USB の**購読は multi-listener API(`add*Listener()`)で行う**ため、スケッチ側も `onKeyboardState` / `onMouse` / `onDeviceDisconnected` 等を使えます。Classic HID Host は EspBle 1.3.0 時点で単一スロット callback のため、Classic keyboard / mouse 入力アダプタは対応する `onKeyboardState()` / `onMouse()` を所有します。
+  - **キーボード LED の output report** (`onOutputReport`)も単一スロットなので、各 HID 出力アダプタが所有する。代わりに `ledState()` をポーリングする。
+- **コールバックの実行コンテキストはライブラリごとに違う**。EspUsbHost / EspUsbDevice は自前のタスクから呼ぶので、アダプタは critical section で `update()` のコンテキストへ渡す。EspBle / EspBleClassic は各 `update()` を呼んだコンテキストから配送するので、**`ble.update()` / `bluetooth.update()` を `bridge.update()` と同じコンテキストで先に呼ぶ**。
 - 出力アダプタは表現できるものだけを出し、他は黙って捨てる(virtual キーは出力に出ない)。

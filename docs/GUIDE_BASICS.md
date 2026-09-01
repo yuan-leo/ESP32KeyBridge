@@ -530,6 +530,34 @@ ble.scanner().start();
 
 **4. It can forward the kana LED**, which the USB Host side cannot (4.3).
 
+#### 5.5.1 Bluetooth Classic HID Host input
+
+Header: `ESP32KeyBridgeEspBleClassic.h` / requires EspBle 1.3.0+ / **original ESP32 only**
+
+`EspBleClassicHidHostKeyboardInputAdapter` and `EspBleClassicHidHostMouseInputAdapter` map the keyboard/mouse reports decoded from the Classic peer's Report Descriptor onto the same KeySet and relative axes as BLE. Report content is compatible; connection mechanics are not.
+
+- Classic HID Host has **one link**; both adapters can read a composite keyboard + mouse on it
+- Instead of scanning a BLE service advertisement (`0x1812`), obtain an address through inquiry or configuration and pass it to `hidHost().connect(address)`
+- Start both `bluetooth.begin()` and `bluetooth.hidHost().begin()`; the sketch owns reconnection too
+- EspBle 1.3.0 decodes keyboard and mouse on the Classic Host side. Consumer/gamepad reports remain available raw but are not inputs to these adapters
+- Classic callbacks are single-slot: the keyboard adapter owns `onKeyboardState()` and the mouse adapter owns `onMouse()`
+- Call `bluetooth.update()` before `bridge.update()` in the same context
+
+```cpp
+EspBleClassic bluetooth;
+EspBleClassicHidHostKeyboardInputAdapter keyboard(bluetooth);
+
+bluetooth.begin();
+bluetooth.hidHost().begin();
+bluetooth.hidHost().connect("00:11:22:33:44:55");
+
+void loop() { bluetooth.update(); bridge.update(); }
+```
+
+The **original ESP32 is the only ESP32 SoC with a Classic BR/EDR radio**. Use BLE on S3/C3/C6/H2/P4.
+
+Starting both BLE and Classic on one original ESP32 is experimental dual-host mode in EspBle and consumes substantial flash. `ClassicKeyboardToBle` uses about 97% of the default app partition, so product additions need a partition scheme with a larger app slot.
+
 ### 5.6 GPIO input
 
 Header: `ESP32KeyBridgeGpio.h` / no external library (Arduino GPIO, plus PCNT for the encoder)
@@ -616,11 +644,15 @@ The worked example is [TouchButtons](../examples/practical/TouchButtons/) (the E
 | `EspBleHidHostKeyboardInputAdapter` | EspBle | 4 links | no* | one media usage per link; encryption effectively required |
 | `EspBleHidHostMouseInputAdapter` | EspBle | 4 links | no* | no horizontal wheel |
 | `EspBleHidHostGamepadInputAdapter` | EspBle | 4 links | no* | no analog axes |
+| `EspBleClassicHidHostKeyboardInputAdapter` | EspBle 1.3.0 | 1 link | no** | original ESP32 only; no decoded consumer input |
+| `EspBleClassicHidHostMouseInputAdapter` | EspBle 1.3.0 | 1 link | no** | original ESP32 only; no horizontal wheel |
 | `GpioKeyInputAdapter` | none | pin count | ⚠ **yes** | for long presses only |
 | `GpioMatrixInputAdapter` | none | 16x16 | no | 2 simultaneous keys without diodes |
 | `RotaryEncoderInputAdapter` | PCNT | 1 per adapter | no | up to the chip's PCNT unit count |
 
 \* as long as `ble.update()` is being called.
+
+\** as long as `bluetooth.update()` is being called.
 
 ---
 
@@ -670,6 +702,16 @@ ble.onDisconnected([](const EspBleConnection &) { ble.advertising().start(); });
 
 This output also receives LED output reports, so it too can be the lock authority (kana included).
 
+#### 6.2.1 Bluetooth Classic HID output
+
+Header: `ESP32KeyBridgeEspBleClassic.h` / requires EspBle 1.3.0+ / **original ESP32 only**
+
+`EspBleClassicHidOutputAdapter` sends the same keyboard 6KRO + consumer + mouse reports as the BLE adapter, but as a Bluetooth Classic HID Device. The sketch owns `EspBleClassic`, and the adapter must be constructed before `bluetooth.begin()`.
+
+The Classic-specific limit is its SDP record: the Report Descriptor and name/description/provider strings in `EspBleClassicHidProfileConfig` share a **214-byte** budget. All three profiles fit with default strings; long custom strings can make `bluetooth.begin()` fail.
+
+Classic accepts one HID Host and has no BLE advertising or GATT subscription. Pair from the Host's Bluetooth settings. Prefer BLE when the peer supports it because BLE covers more SoCs and uses less power.
+
 ### 6.3 Serial output
 
 Header: `ESP32KeyBridgeSerial.h` / no external library (just Arduino's `Print`)
@@ -699,6 +741,7 @@ Finding a gamepad's button numbers, checking matrix wiring, and confirming an en
 |---|---|---|---|---|---|
 | `EspUsbDeviceHidOutputAdapter` | 6KRO | 1 usage | 8 buttons + X/Y/Wheel | expanded to keystrokes | yes |
 | `EspBleHidOutputAdapter` | 6KRO | 1 usage | 8 buttons + X/Y/Wheel | expanded to keystrokes | yes |
+| `EspBleClassicHidOutputAdapter` | 6KRO | 1 usage | 8 buttons + X/Y/Wheel | expanded to keystrokes | yes |
 | `TextOutputAdapter` | — | — | — | yes, as characters | — |
 | `LogOutputAdapter` | displayed | displayed | displayed | displayed | — |
 
@@ -717,6 +760,7 @@ What you can bridge is decided by **which adapters run on that chip**.
 | USB Host input | — | yes | yes | — | yes |
 | USB Device output | — | yes | yes | — | yes |
 | BLE HID in/out | yes | — | yes | yes | via ESP-Hosted |
+| Bluetooth Classic HID in/out | yes | — | — | — | — |
 
 The thing that trips people up here is **how many USB roles you need**.
 
@@ -735,6 +779,7 @@ Dependencies grow **only with the adapters you include**. The core header (`ESP3
 | `ESP32KeyBridgeEspUsbHost.h` | EspUsbHost 2.6.0+ |
 | `ESP32KeyBridgeEspUsbDevice.h` | EspUsbDevice 2.0.0+ |
 | `ESP32KeyBridgeEspBle.h` | EspBle 1.2.0+ |
+| `ESP32KeyBridgeEspBleClassic.h` | EspBle 1.3.0+ (original ESP32 and arduino-esp32 3.2.0+) |
 | `ESP32KeyBridgeGpio.h` | nothing |
 | `ESP32KeyBridgeSerial.h` | nothing |
 

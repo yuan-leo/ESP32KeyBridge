@@ -2,7 +2,7 @@
 
 > English: [README.md](README.md)
 
-ESP32KeyBridge は、ESP32 を**キーボードと、それを読む機器の間に挟む**ための Arduino ライブラリです。1 つ以上の入力アダプタ(USB Host、BLE HID Host、GPIO スイッチ、キーマトリクス、ロータリーエンコーダ)からキー入力を受け取り、共通のキーモデルへ正規化し、リマップ・レイヤー・マクロ・キーボードレイアウト変換を適用して、1 つ以上の出力(USB Device HID、BLE HID、シリアルの `Print`)へ書き出します。
+ESP32KeyBridge は、ESP32 を**キーボードと、それを読む機器の間に挟む**ための Arduino ライブラリです。1 つ以上の入力アダプタ(USB Host、BLE / Bluetooth Classic HID Host、GPIO スイッチ、キーマトリクス、ロータリーエンコーダ)からキー入力を受け取り、共通のキーモデルへ正規化し、リマップ・レイヤー・マクロ・キーボードレイアウト変換を適用して、1 つ以上の出力(USB Device HID、BLE / Classic HID、シリアルの `Print`)へ書き出します。
 
 できあがるのは、PC から見て普通のキーボードと区別のつかない機器です。ドライバも、ホスト側のソフトも、キーボード側の設定変更も要りません。
 
@@ -15,7 +15,7 @@ bridge の core は **Arduino / ESP-IDF / ハードウェアのいずれにも�
 - **入力を統合し、出力へ分配する。** 複数のキーボード・マクロパッド・エンコーダが 1 つの押下集合になり(和集合。解放は入力ごと)、同じ結果を USB ホストと BLE ホストへ同時に出せます。
 - **lock 状態の正本は常に 1 つ。** lock を報告できる出力(USB Device / BLE HID)が接続している間はそのホストが正本で、bridge は各入力の LED へ中継するだけです。そういう出力が無ければ bridge 自身が終端ホストになり、Caps/Num/Scroll を自分でトグルします。
 - **文字は文字のまま流れる。** `typeText()` は文字を文字として bridge に通し、出力の縁で**ホスト側の**レイアウトを使って打鍵へ展開します(Caps Lock 補正と、ユーザーが押している修飾キーの一時退避つき)。レイアウト変換も同じ仕組みなので、日本語設定のままの PC で US 配列を刻印どおり打てます。
-- **USB と BLE で挙動が同じ。** HID 出力はどちらも core の report builder を共有し、ゲームパッド入力はどちらも core の `GamepadKeyMap` を共有するので、2 つのトランスポートが食い違いようがありません。
+- **USB・BLE・Classic で report の挙動が同じ。** HID 出力は core の report builder を共有し、BLE / Classic は EspBle 内でも report packing を共有します。接続方式や対応 SoC の違いはアダプタの外周に留まります。
 - **アダプタは薄く、差し替えられる。** 入力アダプタの実体は `update()` と `keys()` だけです。I2C エキスパンダ、センサ、ネットワーク入力を書くのも 1 ページ程度で済みます(実例が `TouchButtons`)。
 
 ## 機能
@@ -42,6 +42,7 @@ bridge の core は **Arduino / ESP-IDF / ハードウェアのいずれにも�
 | `ESP32KeyBridgeEspUsbHost.h` | [EspUsbHost](https://github.com/tanakamasayuki/EspUsbHost) 2.6.0 以上 | USB キーボード(consumer キー込み)・マウス・ゲームパッド・MIDI 入力 |
 | `ESP32KeyBridgeEspUsbDevice.h` | [EspUsbDevice](https://github.com/tanakamasayuki/EspUsbDevice) 2.0.0 以上 | 複合 USB HID 出力(keyboard + consumer + mouse) |
 | `ESP32KeyBridgeEspBle.h` | [EspBle](https://github.com/tanakamasayuki/EspBle) 1.2.0 以上 | BLE HID 出力(peripheral)、BLE キーボード / マウス / ゲームパッド入力(central) |
+| `ESP32KeyBridgeEspBleClassic.h` | EspBle 1.3.0 以上 | Bluetooth Classic HID 出力、Classic キーボード / マウス入力(**無印 ESP32 のみ**) |
 | `ESP32KeyBridgeGpio.h` | なし(Arduino GPIO。エンコーダは PCNT) | 単独キー、スキャン式キーマトリクス、ロータリーエンコーダ |
 | `ESP32KeyBridgeSerial.h` | なし(Arduino `Print`) | 文字出力、人間可読のデバッグログ |
 
@@ -58,8 +59,11 @@ core は C++ コンパイラがあればどこでもビルドできます(unit t
 | USB Host 入力 | — | ✅ | ✅ | — | ✅ |
 | USB Device 出力 | — | ✅ | ✅ | — | ✅ |
 | BLE HID 入出力 | ✅ | — | ✅ | ✅ | ESP-Hosted 経由 |
+| Bluetooth Classic HID 入出力 | ✅ | — | — | — | — |
 
 USB 対 USB の橋渡し(USB キーボード入力 → USB HID デバイス出力)は **USB を 2 役同時**に使うので **ESP32-P4** が必要です。片側が BLE なら USB は 1 役で済むため、USB が 1 つの **ESP32-S3** で動きます(`UsbKeyboardToBle` / `BleKeyboardToUsb` の 2 例がこれです)。
+
+Bluetooth Classic は BR/EDR 無線を持つ**無印 ESP32 だけ**で使えます。S3 / C3 / C6 / H2 / P4 では BLE を使ってください。Classic は BLE HID 非対応の旧機器向けで、通常は対応 SoC が広く省電力な BLE が第一選択です。
 
 開発と example ビルドは arduino-esp32 3.3.11 で行っています。各 example の `sketch.yaml` に検証済みの core とライブラリのバージョンを固定してあります。
 

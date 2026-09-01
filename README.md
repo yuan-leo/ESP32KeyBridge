@@ -2,7 +2,7 @@
 
 > 日本語版: [README.ja.md](README.ja.md)
 
-ESP32KeyBridge is an Arduino library that puts an ESP32 **between a keyboard and the machine that reads it**. It takes keyboard-shaped input from one or more adapters (USB Host, BLE HID Host, GPIO switches, a matrix, a rotary encoder), normalizes it into one key model, applies remapping, layers, macros and keyboard-layout conversion, and writes the result to one or more outputs (USB Device HID, BLE HID, a serial `Print`).
+ESP32KeyBridge is an Arduino library that puts an ESP32 **between a keyboard and the machine that reads it**. It takes keyboard-shaped input from one or more adapters (USB Host, BLE or Bluetooth Classic HID Host, GPIO switches, a matrix, a rotary encoder), normalizes it into one key model, applies remapping, layers, macros and keyboard-layout conversion, and writes the result to one or more outputs (USB Device HID, BLE or Classic HID, a serial `Print`).
 
 The result is a device the PC cannot tell apart from an ordinary keyboard — no drivers, no software on the host, and nothing to configure on the keyboard either.
 
@@ -15,7 +15,7 @@ The bridge core is portable C++ with **no dependency on Arduino, ESP-IDF, or any
 - **Merge inputs, then fan out to outputs.** Several keyboards, a macro pad, and an encoder combine into one key set (union, with per-source release), and the same result can go to a USB host and a BLE host at once.
 - **Lock state has exactly one owner.** While a lock-reporting output (USB Device / BLE HID) is connected, that host is the authority and the bridge only relays it back to every input's LEDs; with no such output the bridge becomes the terminal host and toggles Caps/Num/Scroll itself.
 - **Characters travel as characters.** `typeText()` carries text through the bridge and expands it into keystrokes at the output edge using the *host's* layout, with Caps Lock compensation and user-held modifiers parked automatically. Layout conversion uses the same machinery, so a US keyboard types as engraved on a PC that stays on ja_jp.
-- **The same behavior on USB and BLE.** Both HID outputs share the core's report builders, and both gamepad inputs share the core's `GamepadKeyMap`, so the two transports cannot drift apart.
+- **The same report behavior on USB, BLE, and Classic.** HID outputs share the core's report builders, while EspBle shares report packing between BLE and Classic. Connection mechanics and SoC support stay at the adapter boundary.
 - **Adapters are thin and replaceable.** An input adapter is `update()` plus `keys()`; writing one for an I2C expander, a sensor, or a network source is about a page of code (`TouchButtons` is a worked example).
 
 ## Features
@@ -42,6 +42,7 @@ Adapter headers are header-only, so a sketch pulls in a dependency only by inclu
 | `ESP32KeyBridgeEspUsbHost.h` | [EspUsbHost](https://github.com/tanakamasayuki/EspUsbHost) 2.6.0+ | USB keyboard (consumer keys included), mouse, gamepad, MIDI input |
 | `ESP32KeyBridgeEspUsbDevice.h` | [EspUsbDevice](https://github.com/tanakamasayuki/EspUsbDevice) 2.0.0+ | Composite USB HID output (keyboard + consumer + mouse) |
 | `ESP32KeyBridgeEspBle.h` | [EspBle](https://github.com/tanakamasayuki/EspBle) 1.2.0+ | BLE HID output (peripheral) and BLE keyboard / mouse / gamepad input (central) |
+| `ESP32KeyBridgeEspBleClassic.h` | EspBle 1.3.0+ | Bluetooth Classic HID output and Classic keyboard / mouse input (**original ESP32 only**) |
 | `ESP32KeyBridgeGpio.h` | — (Arduino GPIO; the encoder uses PCNT) | Single keys, a scanned key matrix, a rotary encoder |
 | `ESP32KeyBridgeSerial.h` | — (Arduino `Print`) | Text output and a human-readable debug log |
 
@@ -58,8 +59,11 @@ The core builds anywhere a C++ compiler runs — the unit tests compile it for t
 | USB Host input | — | ✅ | ✅ | — | ✅ |
 | USB Device output | — | ✅ | ✅ | — | ✅ |
 | BLE HID in / out | ✅ | — | ✅ | ✅ | via ESP-Hosted |
+| Bluetooth Classic HID in / out | ✅ | — | — | — | — |
 
 USB-to-USB bridging (a USB keyboard in, a USB HID device out) needs **two USB roles at once**, so it needs an **ESP32-P4**. A bridge with BLE on one side uses only one USB role and runs on a single-USB **ESP32-S3** — which is what the `UsbKeyboardToBle` and `BleKeyboardToUsb` examples do.
+
+Bluetooth Classic needs a BR/EDR radio and therefore runs on the **original ESP32 only**. Use it for a legacy peer that cannot speak BLE HID; otherwise BLE is the default because it supports more SoCs and consumes less power.
 
 Development and the example builds run on arduino-esp32 3.3.11; each example's `sketch.yaml` pins the verified core and library versions.
 

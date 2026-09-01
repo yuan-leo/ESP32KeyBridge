@@ -532,6 +532,34 @@ ble.scanner().start();
 
 **4. かな LED を転送できる。** これは USB Host 側にはない利点です(4.3 節)。
 
+#### 5.5.1 Bluetooth Classic HID Host 入力
+
+ヘッダ: `ESP32KeyBridgeEspBleClassic.h` / 依存: EspBle 1.3.0 以上 / **無印 ESP32 のみ**
+
+`EspBleClassicHidHostKeyboardInputAdapter` と `EspBleClassicHidHostMouseInputAdapter` は、Classic HID Host が Report Descriptor から復号した keyboard / mouse report を BLE 版と同じ KeySet・相対軸へ写像します。report の中身は互換ですが、接続の周辺は別物です。
+
+- Classic HID Host は **1 接続**。keyboard + mouse 複合デバイスなら両アダプタで同じ接続を読める
+- BLE の service advertisement (`0x1812`)を scan する代わりに、inquiry 等で得た **Bluetooth address を `hidHost().connect(address)` へ渡す**
+- `bluetooth.begin()` と `bluetooth.hidHost().begin()` の両方が必要。切断後の再接続もスケッチが行う
+- EspBle 1.3.0 の Classic Host が標準復号するのは keyboard / mouse。consumer / gamepad は raw report には届くが、このアダプタでは扱わない
+- callback は単一スロットなので、keyboard アダプタが `onKeyboardState()`、mouse アダプタが `onMouse()` を所有する
+- `bluetooth.update()` を `bridge.update()` と同じコンテキストで先に呼ぶ
+
+```cpp
+EspBleClassic bluetooth;
+EspBleClassicHidHostKeyboardInputAdapter keyboard(bluetooth);
+
+bluetooth.begin();
+bluetooth.hidHost().begin();
+bluetooth.hidHost().connect("00:11:22:33:44:55");
+
+void loop() { bluetooth.update(); bridge.update(); }
+```
+
+Bluetooth Classic の BR/EDR 無線を持つ ESP32 SoC は**無印 ESP32 だけ**です。S3 / C3 / C6 / H2 / P4 では BLE アダプタを使います。
+
+同じ無印 ESP32 で BLE と Classic を両方 `begin()` する dual-host mode は EspBle では実験扱いで、flash も大きく使います。`ClassicKeyboardToBle` は既定 app partition の約 97% なので、製品固有機能を足す場合は app の大きい partition scheme が必要です。
+
 ### 5.6 GPIO 入力
 
 ヘッダ: `ESP32KeyBridgeGpio.h` / 依存: なし(Arduino GPIO と、エンコーダは PCNT)
@@ -618,11 +646,15 @@ private:
 | `EspBleHidHostKeyboardInputAdapter` | EspBle | 4 接続 | しない* | メディアキーは 1 接続 1 usage。暗号化が事実上必須 |
 | `EspBleHidHostMouseInputAdapter` | EspBle | 4 接続 | しない* | 横ホイールなし |
 | `EspBleHidHostGamepadInputAdapter` | EspBle | 4 接続 | しない* | アナログ軸は未対応 |
+| `EspBleClassicHidHostKeyboardInputAdapter` | EspBle 1.3.0 | 1 接続 | しない** | 無印 ESP32 のみ。consumer 入力は未復号 |
+| `EspBleClassicHidHostMouseInputAdapter` | EspBle 1.3.0 | 1 接続 | しない** | 無印 ESP32 のみ。横ホイールなし |
 | `GpioKeyInputAdapter` | なし | ピン数まで | ⚠ **する** | 押下の長い入力専用 |
 | `GpioMatrixInputAdapter` | なし | 16×16 | しない | ダイオード無しは同時 2 キーまで |
 | `RotaryEncoderInputAdapter` | PCNT | 1/アダプタ | しない | PCNT ユニット数まで |
 
 \* `ble.update()` を呼んでいる限り。
+
+\** `bluetooth.update()` を呼んでいる限り。
 
 ---
 
@@ -672,6 +704,16 @@ ble.onDisconnected([](const EspBleConnection &) { ble.advertising().start(); });
 
 こちらも LED output report を受け取るので、lock の正本になれます(かな含む)。
 
+#### 6.2.1 Bluetooth Classic HID 出力
+
+ヘッダ: `ESP32KeyBridgeEspBleClassic.h` / 依存: EspBle 1.3.0 以上 / **無印 ESP32 のみ**
+
+`EspBleClassicHidOutputAdapter` は BLE 版と同じ keyboard 6KRO + consumer + mouse report を Bluetooth Classic HID Device として送ります。`EspBleClassic` をスケッチが所有し、アダプタを `bluetooth.begin()` より先に構築する点も同型です。
+
+Classic 固有の違いは、Report Descriptor と `EspBleClassicHidProfileConfig` の名前・説明・provider 文字列が 1 個の SDP record を共有し、合計 **214 byte** までであることです。既定文字列なら 3 profile は収まります。長い文字列で超過すると `bluetooth.begin()` が失敗します。
+
+Classic HID Host は 1 台で、BLE の advertising / GATT subscription はありません。Host 側の Bluetooth 設定から pairing します。相手が BLE HID を受け付けるなら、対応 SoC が広く省電力な BLE を優先してください。
+
 ### 6.3 シリアル出力
 
 ヘッダ: `ESP32KeyBridgeSerial.h` / 依存: なし(Arduino の `Print` のみ)
@@ -701,6 +743,7 @@ ble.onDisconnected([](const EspBleConnection &) { ble.advertising().start(); });
 |---|---|---|---|---|---|
 | `EspUsbDeviceHidOutputAdapter` | 6KRO | 1 usage | ボタン 8 + X/Y/Wheel | 打鍵に展開 | ✅ |
 | `EspBleHidOutputAdapter` | 6KRO | 1 usage | ボタン 8 + X/Y/Wheel | 打鍵に展開 | ✅ |
+| `EspBleClassicHidOutputAdapter` | 6KRO | 1 usage | ボタン 8 + X/Y/Wheel | 打鍵に展開 | ✅ |
 | `TextOutputAdapter` | — | — | — | ✅ そのまま | — |
 | `LogOutputAdapter` | 表示のみ | 表示のみ | 表示のみ | 表示のみ | — |
 
@@ -719,6 +762,7 @@ ble.onDisconnected([](const EspBleConnection &) { ble.advertising().start(); });
 | USB Host 入力 | — | ✅ | ✅ | — | ✅ |
 | USB Device 出力 | — | ✅ | ✅ | — | ✅ |
 | BLE HID 入出力 | ✅ | — | ✅ | ✅ | ESP-Hosted 経由 |
+| Bluetooth Classic HID 入出力 | ✅ | — | — | — | — |
 
 ここで一番引っかかるのが **USB の役割数**です。
 
@@ -737,6 +781,7 @@ P4 の USB ポート事情の詳細は [SwapCtrlCapsLock の README](../examples
 | `ESP32KeyBridgeEspUsbHost.h` | EspUsbHost 2.6.0 以上 |
 | `ESP32KeyBridgeEspUsbDevice.h` | EspUsbDevice 2.0.0 以上 |
 | `ESP32KeyBridgeEspBle.h` | EspBle 1.2.0 以上 |
+| `ESP32KeyBridgeEspBleClassic.h` | EspBle 1.3.0 以上(無印 ESP32 + arduino-esp32 3.2.0 以上) |
 | `ESP32KeyBridgeGpio.h` | なし |
 | `ESP32KeyBridgeSerial.h` | なし |
 

@@ -27,7 +27,7 @@ core は特定のトランスポート、保存先、設定 UI に依存しま�
 4. **単発系**: 文字ストリーム、アクション列キュー(アトミック性・修飾退避/復元・あふれ)、相対値(合算・繰り越し・反転/倍率)、キーボードレイアウト記述(`en_us` / `ja_jp`)と制御文字。**(実装済み)**
 5. **レイアウト変換**: (キー,Shift)→(キー,Shift) 表、Shift 抑制・合成、on/off 切替、修飾コンボ素通し。**(実装済み)**
 6. **マウス**: mouse_button 種別、相対軸、HID report builder(6KRO / rollover / consumer / mouse)。**(実装済み)**
-7. **アダプタと example**: USB Host keyboard/mouse 入力、USB device(複合)出力、GPIO、文字列デバイス(シリアル)。既存の examples / tests を新 API へ移行。**(進行中: USB Host keyboard/mouse/gamepad/MIDI 入力・USB Device 複合 HID 出力・GPIO 入力・GPIO マトリクス・ロータリーエンコーダ・BLE HID 入出力は実装済み。GPIO マトリクスは実機検証済み、残りは実機検証待ち → [DECISIONS.ja.md](DECISIONS.ja.md))**
+7. **アダプタと example**: USB Host keyboard/mouse 入力、USB device(複合)出力、GPIO、文字列デバイス(シリアル)。既存の examples / tests を新 API へ移行。**(進行中: USB Host keyboard/mouse/gamepad/MIDI 入力・USB Device 複合 HID 出力・GPIO 入力・GPIO マトリクス・ロータリーエンコーダ・BLE HID 入出力・Bluetooth Classic HID 入出力は実装済み。Classic は無印 ESP32 2台の peer test 済み → [DECISIONS.ja.md](DECISIONS.ja.md))**
 
 各段階で unit test(host 実行)を先に固定し、実機依存は build-only → single → peer の順で追加します([../tests/TEST_PLAN.ja.md](../tests/TEST_PLAN.ja.md))。
 
@@ -35,8 +35,8 @@ core は特定のトランスポート、保存先、設定 UI に依存しま�
 
 アダプタの一覧・実装状況・PC から見える USB 構成・追加依存ライブラリは [ADAPTERS.ja.md](ADAPTERS.ja.md) にまとめています。
 
-- 入力: USB Host(keyboard / mouse / barcode)、GPIO(単独キー・マトリクス・エンコーダ・フットスイッチ)、BLE keyboard / mouse / gamepad(EspBle)、UART / シリアル(イベント・文字列)、I2C / SPI エキスパンダ、IR。
-- 出力: USB Device(keyboard / mouse / consumer の複合)、BLE HID(EspBle)、UART(イベント・ログ・文字)、GPIO。
+- 入力: USB Host(keyboard / mouse / barcode)、GPIO(単独キー・マトリクス・エンコーダ・フットスイッチ)、BLE keyboard / mouse / gamepad、Bluetooth Classic keyboard / mouse(EspBle、無印 ESP32 のみ)、UART / シリアル(イベント・文字列)、I2C / SPI エキスパンダ、IR。
+- 出力: USB Device(keyboard / mouse / consumer の複合)、BLE HID、Bluetooth Classic HID(EspBle、無印 ESP32 のみ)、UART(イベント・ログ・文字)、GPIO。
 - 将来メモ(v1 対象外): 無線ペア / TCP トランスポート、出力切替(KVM 的)、絶対座標。詳細は [DECISIONS.ja.md](DECISIONS.ja.md)。
 
 ## 設計判断(要約)

@@ -8,6 +8,8 @@ Every example is a **practical** one: a sketch for a real hardware setup, ready 
 
 - `BarcodeToText`: turn a USB HID barcode reader into a stream of text on the serial port. ESP32-S3 + USB Host.
 - `BleKeyboardToUsb`: use a Bluetooth keyboard (and mouse) on a machine that will not pair with one — BIOS, KVM, console. ESP32-S3 + BLE HID Host/USB Device.
+- `ButtonsToClassic`: control a legacy non-BLE HID Host from GPIO buttons. Original ESP32 + Bluetooth Classic HID Device.
+- `ClassicKeyboardToBle`: expose an old Classic-only HID keyboard to a BLE HID Host. Original ESP32, experimental Classic/BLE dual-host mode.
 - `FootSwitch`: type canned text, control media, or turn pages with foot switches or homemade buttons. ESP32-S3 + GPIO.
 - `GamepadToKeys`: control the PC as a keyboard with a USB gamepad (D-pad = arrows, buttons = Space/Enter/...). ESP32-P4 + USB Host/Device.
 - `KeyMonitor`: print the bridge output to the serial console to bring up or monitor input hardware. ESP32-S3 + GPIO.

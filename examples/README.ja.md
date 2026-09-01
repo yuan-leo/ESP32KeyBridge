@@ -8,6 +8,8 @@ examples はすべて**実用例**です。実ハードウェア構成でその�
 
 - `BarcodeToText`: USB HID バーコードリーダーをシリアルの文字列に変換したいとき。ESP32-S3 + USB Host。
 - `BleKeyboardToUsb`: Bluetooth キーボード(とマウス)を、ペアリングできない機器 — BIOS、KVM、ゲーム機 — で使いたいとき。ESP32-S3 + BLE HID Host/USB Device。
+- `ButtonsToClassic`: BLE HID 非対応の旧機器を GPIO ボタンから操作したいとき。無印 ESP32 + Bluetooth Classic HID Device。
+- `ClassicKeyboardToBle`: Classic HID 専用の古いキーボードを BLE HID Host から使いたいとき。無印 ESP32 の Classic/BLE dual-host。
 - `FootSwitch`: フットスイッチや自作ボタンで定型文入力・メディア操作・ページ送りをしたいとき。ESP32-S3 + GPIO。
 - `GamepadToKeys`: USB ゲームパッドで PC をキーボード操作(十字=矢印、ボタン=Space/Enter など)したいとき。ESP32-P4 + USB Host/Device。
 - `KeyMonitor`: 入力ハードのブリングアップ・監視用に、ブリッジ出力をシリアルに表示したいとき。ESP32-S3 + GPIO。

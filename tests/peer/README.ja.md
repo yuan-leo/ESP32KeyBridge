@@ -1,6 +1,6 @@
 # Peer Tests
 
-ESP32-S3 2台を使う自動テストです。
+ESP32-S3 2台、または Bluetooth Classic 用の無印 ESP32 2台を使う自動テストです。
 
 `ESP32KeyBridge` では core logic は `tests/unit/` を主戦場にします。peer test は adapter(USB / BLE)の境界を確認する smoke test に限定します。
 
@@ -10,6 +10,7 @@ ESP32-S3 2台を使う自動テストです。
 
 - Host board: USB Host adapter を実行する ESP32-S3。
 - Device board: USB Device adapter または test source device を実行する ESP32-S3。
+- Classic テスト: BR/EDR を持つ無印 ESP32 2台。無線なので追加配線なし。
 
 USB のテストでは USB data pin を直結します(BLE のテストは無線なので配線不要ですが、同じ 2 台を使います)。
 
@@ -36,6 +37,13 @@ TEST_SERIAL_PORT_S3_PEER_HOST=/dev/ttyUSB0
 TEST_SERIAL_PORT_PEER_DEVICE_S3_PEER_DEVICE=/dev/ttyUSB1
 ```
 
+Classic テストは次の profile / 変数を使います。
+
+```sh
+TEST_SERIAL_PORT_ESP32_PEER_HOST=/dev/ttyUSB0
+TEST_SERIAL_PORT_PEER_DEVICE_ESP32_PEER_DEVICE=/dev/ttyUSB1
+```
+
 ## 追加済み
 
 - `usb_host_keyboard`: Device board(EspUsbDevice の keyboard **単体** = boot 宣言 interface)が HID keyboard report を送り、Host board のブリッジ入力パイプラインを検証する。内容: remap(A→B)、修飾キー単独 press/release、**多キー同時押し(A+C+E をリマップ込みで)**、**キー+修飾同時(LeftShift+A)**、終端ホストの CapsLock トグル → キーボード LED 転送、**デバイス切断でホールド中のキーが解放される**こと。
@@ -47,6 +55,8 @@ TEST_SERIAL_PORT_PEER_DEVICE_S3_PEER_DEVICE=/dev/ttyUSB1
 - `ble_hid_keyboard`: Device board(素の EspBle による BLE HID keyboard + mouse + consumer peripheral)を、Host board の bridge が `EspBleHidHostKeyboardInputAdapter` / `EspBleHidHostMouseInputAdapter` で読む。内容: remap(A→B)、キー+修飾、多キースナップショット、consumer の統合、マウスのボタンと相対軸、終端ホストの CapsLock トグル → キーボード LED 転送、**切断でホールド中のキーが解放される**こと。
 - `ble_hid_gamepad`: Device board(素の EspBle による BLE HID gamepad peripheral)のボタン/ハットを、Host board の `EspBleHidHostGamepadInputAdapter` がキーに写像することを検証する(ボタン → キー、多ボタン同時、ハット上、**斜め = 2 キー**、切断解放)。写像は USB 版と同じ `GamepadKeyMap` を通るので、USB gamepad テストと同じマッピングを使っている。EspBle のハットは 0=中立 + 1〜8 の 9 値エンコードなので、`decodeHat()` の 9 値分岐も一緒に通る。
 - `ble_hid_output`: BLE 側の逆方向の境界。Device board が bridge の出力パイプライン(ManualInput → `EspBleHidOutputAdapter`)を動かし、Host board が素の EspBle HID Host として観測する。内容: 単キー、修飾バイト、6 キーロールオーバー、consumer usage、マウス ボタン/ホイール/XY、**LED → lock 正本**(ホストが LED report を書き、出力アダプタが lock 正本になる)。
+- `classic_hid_keyboard`: 無印 ESP32 の素の EspBle Classic keyboard + mouse Device を、もう 1 台の bridge が `EspBleClassicHidHostKeyboardInputAdapter` / `EspBleClassicHidHostMouseInputAdapter` で読む。A→B remap、修飾、複数キー、mouse ボタン・XY・wheel、Caps LED 転送、押下中切断解放。
+- `classic_hid_output`: bridge の `EspBleClassicHidOutputAdapter` を、もう 1 台の素の EspBle Classic HID Host で観測する。単キー、修飾、6KRO、consumer raw report、mouse、**LED → lock 正本**。
 
 > **補足**: LED → lock 正本テストは EspUsbHost 2.2.0 では skip していた(`setKeyboardLeds()` が boot 宣言 interface にしか届かず、複合 HID は 1 interface に report ID でマージされ boot 宣言を持たないため)。**2.3.0 で report descriptor の LED output report を検出し report ID 付き SET_REPORT を送れるようになり解消**、有効化した。
 

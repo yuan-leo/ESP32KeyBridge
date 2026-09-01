@@ -16,8 +16,8 @@
 
 - `unit/`: 共通キーイベント、keymap、layer、macro など、ホスト不要のテスト。
 - `examples_compile/`: examples sketch の build-only smoke test。
-- `single/`: ESP32-S3 1台で Arduino runtime 上の core / reference example を確認する自動テスト。
-- `peer/`: 常時接続された ESP32-S3 2台で USB adapter 境界を確認する自動テスト。
+- `single/`: ESP32-S3 の core runtime と、無印 ESP32 の Classic stack / adapter smoke を確認する自動テスト。
+- `peer/`: ESP32-S3 2台で USB / BLE、無印 ESP32 2台で Classic adapter 境界を確認する自動テスト。
 - `manual/`: 配線、Host OS、Bluetooth pairing、目視確認など人の操作が必要なテスト。
 
 ## 実行

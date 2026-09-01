@@ -18,9 +18,13 @@
 
 `ble_hid_output`: the opposite boundary on BLE — the peer device board drives the bridge output pipeline (manual input → `EspBleHidOutputAdapter`) and the host DUT observes it as a plain `EspBle` HID Host: single key, modifier byte, six-key rollover, consumer usage, mouse button/wheel/XY, and the LED-to-lock path (the host writes an LED report and the output adapter becomes the lock authority).
 
+`classic_hid_keyboard`: a plain EspBle Classic keyboard + mouse Device on one original ESP32 drives the other board's `EspBleClassicHidHostKeyboardInputAdapter` / `EspBleClassicHidHostMouseInputAdapter`: A→B remap, modifier, multi-key state, mouse button/XY/wheel, Caps LED forwarding, and held-key release on disconnect.
+
+`classic_hid_output`: `EspBleClassicHidOutputAdapter` on one original ESP32 is observed by a plain EspBle Classic HID Host on the other: single key, modifier, 6KRO, raw consumer report, mouse, and Host LED to lock authority.
+
 The three BLE tests need no wiring — the link is radio — but use the same two boards. Each clears bonds on both sides at the start and the end, so pairing state from a previous run cannot change the outcome. Each is a single test function rather than several: a BLE link is stateful and expensive to set up, so pairing once and asserting along the way keeps the sequence deterministic (the same shape EspBle's own HID peer tests use).
 
-Two-board ESP32-S3 hardware tests.
+Two-board ESP32-S3 hardware tests, plus two original ESP32 boards for Bluetooth Classic.
 
 Core logic is covered by `tests/unit/`. Peer tests are reserved for adapter boundary smoke tests (USB and BLE).
 
@@ -35,4 +39,11 @@ Serial port variables follow the existing project convention:
 ```sh
 TEST_SERIAL_PORT_S3_PEER_HOST=/dev/ttyUSB0
 TEST_SERIAL_PORT_PEER_DEVICE_S3_PEER_DEVICE=/dev/ttyUSB1
+```
+
+Classic profiles use:
+
+```sh
+TEST_SERIAL_PORT_ESP32_PEER_HOST=/dev/ttyUSB0
+TEST_SERIAL_PORT_PEER_DEVICE_ESP32_PEER_DEVICE=/dev/ttyUSB1
 ```
