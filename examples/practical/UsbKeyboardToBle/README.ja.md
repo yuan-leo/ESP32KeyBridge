@@ -12,7 +12,9 @@
 ## local layout 設定
 
 ESP32-S3 は layout 設定 page も host します。phone を `KeyBridge-Setup`、
-password `keybridge` へ接続し、`http://192.168.4.1/` を開きます。保存時は
+password `keybridge` へ接続します。captive portal discovery により phone が
+local 設定 page を提示または自動表示します。表示されない場合は
+`http://192.168.4.1/` を開きます。保存時は
 二重化 NVS record の読戻し確認後に input/host layout、変換状態、toggle key
 を適用します。実運用前にこの開発用 credential を変更してください。
 

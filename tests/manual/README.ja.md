@@ -20,6 +20,17 @@ LED output report → lock 正本の loopback は peer テスト(`usb_device_key
 - BLE HID pairing と再接続。
 - 複数入力または複数出力を同時に使う構成の実操作確認。
 
+## ESP32-S3 captive portal discovery
+
+- `SettingsPortal` または `UsbKeyboardToBle` を ESP32-S3 へ書き込む。
+- Android または iOS phone から example Wi-Fi `KeyBridge-Setup` へ
+  password `keybridge` で接続する。
+- phone が ESP32 KeyBridge 設定 page を提示または自動表示することを確認する。
+  OS が captive prompt を抑止した場合は任意の plain HTTP site を開き、
+  `http://192.168.4.1/` へ redirect されることを確認する。
+- internet 接続なしで設定 page が動き、未知の `/api/v1/...` path は HTML
+  page ではなく JSON 404 を返すことを確認する。
+
 手順を追加するときは、必要なボード、配線、使用する example、期待される観測結果を明記します。
 
 manual 用の ESP32-S3 は常時接続前提ではありません。`.env` では既存プロジェクトと同じ `TEST_SERIAL_PORT_ESP32S3` を使います。

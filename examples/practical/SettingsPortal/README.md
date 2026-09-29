@@ -9,14 +9,16 @@ redundant NVS store, read back, and then applied to the bridge.
 
 This standalone bring-up sketch does not attach a keyboard, so its navigation
 endpoint reports unavailable. The `UsbKeyboardToBle` example binds the Phase 4
-wired-keyboard navigation adapter. Captive-portal DNS is not implemented.
+wired-keyboard navigation adapter. Phase 6 captive-portal discovery is enabled:
+the phone should offer or open the local settings page after joining the Wi-Fi.
 
 ## Try it
 
 1. Flash the sketch to an ESP32-S3 and open its serial console at 115200 baud.
 2. Connect a phone to Wi-Fi network `KeyBridge-Setup` with password
    `keybridge`.
-3. Browse to `http://192.168.4.1/` or the address printed on the serial console.
+3. Accept the phone's settings-page prompt. If it does not appear, browse to
+   `http://192.168.4.1/` or the address printed on the serial console.
 
 The development credentials are intentionally visible in the sketch. Change
 them before deploying a device. `SettingsAccessPointConfig` rejects open or
@@ -33,6 +35,12 @@ The page and APIs are compiled into firmware and use no internet-hosted assets:
 - `GET /api/v1/navigation` — renew keyboard capture and receive one action
 - `GET /api/v1/status` — live conversion, client count, and overflow status
 - `GET /healthz` — plain-text health check
+
+With `accessPoint.captivePortal = true`, wildcard DNS maps requested host names
+to the ESP32-S3. Unknown non-API GET paths used by phone connectivity checks
+redirect to the fixed SoftAP address. Unknown `/api/` paths and non-GET
+requests remain 404 responses. Captive discovery does not replace WPA2 or add
+application authentication.
 
 Call `settingsWeb.update()` frequently. In a real keyboard sketch, keep
 `bridge.update()` (and `ble.update()` where applicable) ahead of it so keyboard

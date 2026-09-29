@@ -1,6 +1,8 @@
 # Changelog / 変更履歴
 
 ## Unreleased
+- (EN) Add Phase 6 opt-in captive-portal discovery: wildcard local DNS, fixed-AP-address redirects for unknown non-API GET probes, API-safe 404 behavior, and automatic discovery enabled in both ESP32-S3 settings examples.
+- (JA) Phase 6 の opt-in captive portal discovery を追加。local wildcard DNS、未知の非 API GET probe から固定 AP address への redirect、API の安全な 404 動作を実装し、両 ESP32-S3 設定 example で自動検出を有効化。
 - (EN) Add Phase 5 macro configuration: four F1-F24 text-macro slots, strict UTF-8 and versioned JSON validation, independent redundant NVS persistence with read-back verification, atomic live full-table replacement, and responsive browser editing.
 - (JA) Phase 5 の macro 設定を追加。F1-F24 を trigger にする4個の text macro slot、厳密な UTF-8 / version付き JSON 検証、独立した二重化 NVS と読戻し確認、live macro table の atomic な全置換、responsive browser 編集を実装。
 - (EN) Add Phase 4 wired-keyboard navigation for the ESP32-S3 settings page. A bounded input decorator sends Tab, arrow, activation, cancel, Home, and End actions to the browser while suppressing captured keys from the BLE host; a short polling lease releases capture safely when the page disappears.

@@ -1,8 +1,8 @@
 # Persistent local settings (ESP32-S3)
 
 Phase 1 of the locally hosted configuration work provides the layout settings
-and persistence layer. Phases 2 through 5's network view, editor, keyboard
-navigation, and macro settings are demonstrated by
+and persistence layer. Phases 2 through 6's network view, editor, keyboard
+navigation, macro settings, and captive discovery are demonstrated by
 [`SettingsPortal`](../examples/practical/SettingsPortal/).
 
 The Phase 3 API accepts a complete settings document at `PUT /api/v1/config`.
@@ -154,3 +154,26 @@ using the configured host layout. Use the phone's text input to edit macro
 content; the attached wired keyboard navigation channel moves between controls
 and activates buttons, but intentionally does not forward printable keys into
 browser fields while capture is active.
+
+## Captive-portal discovery
+
+Phase 6 adds opt-in discovery to `SettingsAccessPointConfig`:
+
+```cpp
+esp32keybridge::SettingsAccessPointConfig accessPoint;
+accessPoint.ssid = "KeyBridge-Setup";
+accessPoint.password = "keybridge";
+accessPoint.captivePortal = true;
+settingsWeb.begin(accessPoint);
+```
+
+When enabled, a wildcard DNS responder resolves requested names to the
+ESP32-S3 SoftAP address. Unknown non-API GET paths, including common operating
+system connectivity probes, receive a 302 redirect to that fixed local IP.
+The redirect never reflects the request's `Host` header. Registered routes
+behave normally; unknown `/api/` routes and non-GET requests retain JSON 404
+responses. `update()` services DNS alongside HTTP, and `end()` stops both.
+
+This feature only improves local page discovery. It does not weaken the
+required WPA2 passphrase, provision production credentials, or add an
+application authentication layer.

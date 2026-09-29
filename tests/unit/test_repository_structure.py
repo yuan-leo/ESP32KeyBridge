@@ -92,7 +92,7 @@ def test_examples_are_grouped_with_docs_and_compile_profiles():
     assert missing == []
 
 
-def test_phase5_settings_portal_is_offline_and_has_bounded_write_endpoints():
+def test_phase6_settings_portal_is_offline_and_has_bounded_write_endpoints():
     web = (ROOT / "src/ESP32KeyBridgeWeb.h").read_text(encoding="utf-8")
 
     assert 'server_.on("/", HTTP_GET' in web
@@ -107,4 +107,10 @@ def test_phase5_settings_portal_is_offline_and_has_bounded_write_endpoints():
     assert "HTTP_POST" not in web
     assert web.count("HTTP_PUT") == 2
     assert "https://" not in web
-    assert "http://" not in web
+    assert 'src="http' not in web
+    assert 'href="http' not in web
+    assert "#include <DNSServer.h>" in web
+    assert 'dnsServer_.start(53, "*", WiFi.softAPIP())' in web
+    assert 'server_.uri() != "/api"' in web
+    assert '!server_.uri().startsWith("/api/")' in web
+    assert 'String("http://") + WiFi.softAPIP().toString()' in web

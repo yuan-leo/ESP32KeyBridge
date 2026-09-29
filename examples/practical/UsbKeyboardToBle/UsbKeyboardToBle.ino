@@ -140,6 +140,7 @@ void setup()
   accessPoint.ssid = "KeyBridge-Setup";
   accessPoint.password = "keybridge";
   accessPoint.maxConnections = 1;
+  accessPoint.captivePortal = true;
   esp32keybridge::SettingsWebError webError;
   if (!settingsWeb.begin(accessPoint, &webError))
   {

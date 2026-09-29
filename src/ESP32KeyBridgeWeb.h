@@ -6,6 +6,7 @@
 #error "ESP32KeyBridgeWeb supports ESP32-S3 only"
 #endif
 
+#include <DNSServer.h>
 #include <WebServer.h>
 #include <WiFi.h>
 
@@ -94,6 +95,7 @@ enum class SettingsWebErrorCode : uint8_t
   InvalidChannel,
   InvalidMaxConnections,
   WifiStartFailed,
+  DnsStartFailed,
 };
 
 struct SettingsWebError
@@ -109,6 +111,7 @@ struct SettingsAccessPointConfig
   uint8_t channel = 1;
   bool hidden = false;
   uint8_t maxConnections = 1;
+  bool captivePortal = false;
 };
 
 // ESP32-S3 SoftAP plus the local settings website. The sketch owns scheduling
@@ -116,6 +119,7 @@ struct SettingsAccessPointConfig
 // read-only; the mutable construction plus enableEditing() adds the Phase 3
 // validated, persisted PUT endpoint. Phase 4 can bind a keyboard-navigation
 // source whose capture lease is held only while the browser page is polling.
+// Phase 6 optionally adds wildcard DNS and captive-portal probe redirects.
 class Esp32S3SettingsWebServer
 {
 public:
@@ -223,6 +227,16 @@ public:
                   "could not start the ESP32-S3 SoftAP");
     }
 
+    captivePortalEnabled_ = config.captivePortal;
+    if (captivePortalEnabled_ &&
+        !dnsServer_.start(53, "*", WiFi.softAPIP()))
+    {
+      captivePortalEnabled_ = false;
+      WiFi.softAPdisconnect(true);
+      return fail(error, SettingsWebErrorCode::DnsStartFailed,
+                  "could not start captive-portal DNS");
+    }
+
     server_.begin();
     started_ = true;
     return true;
@@ -232,6 +246,10 @@ public:
   {
     if (started_)
     {
+      if (captivePortalEnabled_)
+      {
+        dnsServer_.processNextRequest();
+      }
       server_.handleClient();
       if (navigationLeaseActive_ &&
           static_cast<uint32_t>(millis() - lastNavigationPollMs_) >
@@ -250,12 +268,15 @@ public:
       return;
     }
     server_.stop();
+    dnsServer_.stop();
     WiFi.softAPdisconnect(true);
     releaseNavigationCapture();
+    captivePortalEnabled_ = false;
     started_ = false;
   }
 
   bool started() const { return started_; }
+  bool captivePortalEnabled() const { return started_ && captivePortalEnabled_; }
   IPAddress address() const { return started_ ? WiFi.softAPIP() : IPAddress(); }
   uint8_t connectedClients() const { return started_ ? WiFi.softAPgetStationNum() : 0; }
 
@@ -325,10 +346,25 @@ private:
       server_.send(200, "text/plain; charset=utf-8", "ok\n");
     });
     server_.onNotFound([this]() {
+      if (captivePortalEnabled_ && server_.method() == HTTP_GET &&
+          server_.uri() != "/api" && !server_.uri().startsWith("/api/"))
+      {
+        redirectToPortal();
+        return;
+      }
       commonHeaders();
       server_.send(404, "application/json; charset=utf-8",
                    "{\"error\":\"not_found\"}\n");
     });
+  }
+
+  void redirectToPortal()
+  {
+    const String location = String("http://") + WiFi.softAPIP().toString() + "/";
+    commonHeaders();
+    server_.sendHeader("Location", location, true);
+    server_.send(302, "text/plain; charset=utf-8",
+                 "Open ESP32 KeyBridge settings\n");
   }
 
   void sendConfig()
@@ -576,11 +612,13 @@ private:
   KeyboardMacroSettingsStore *macroStore_ = nullptr;
   ESP32KeyBridgeConfig *macroConfig_ = nullptr;
   SettingsNavigationSource *navigation_ = nullptr;
+  DNSServer dnsServer_;
   WebServer server_;
   static constexpr uint32_t NavigationLeaseMilliseconds = 1200;
   uint32_t lastNavigationPollMs_ = 0;
   bool handlersRegistered_ = false;
   bool started_ = false;
+  bool captivePortalEnabled_ = false;
   bool navigationLeaseActive_ = false;
 };
 

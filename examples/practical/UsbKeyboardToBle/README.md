@@ -12,7 +12,8 @@ Make a wired USB keyboard wireless. The keyboard plugs into the ESP32, and the P
 ## Local layout settings
 
 The ESP32-S3 also hosts the layout-settings page. Connect a phone to
-`KeyBridge-Setup` with password `keybridge`, then open
+`KeyBridge-Setup` with password `keybridge`. The phone should offer or open the
+local settings page through captive-portal discovery; if it does not, open
 `http://192.168.4.1/`. Saving verifies the redundant NVS record before the new
 input/host layouts, conversion state, and toggle key are applied. Change these
 development credentials before deploying a device.
