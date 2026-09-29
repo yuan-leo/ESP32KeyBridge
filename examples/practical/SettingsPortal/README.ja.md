@@ -20,6 +20,7 @@ discovery は有効で、Wi-Fi 接続後に phone が local 設定 page を提�
 2. phone を Wi-Fi `KeyBridge-Setup`、password `keybridge` へ接続する。
 3. phone の設定 page prompt を開く。表示されない場合は
    `http://192.168.4.1/` または serial console の address を開く。
+4. username `admin`、password `configure` で sign in する。
 
 page と API は firmware に組み込まれ、internet 上の asset を使いません。
 `GET /api/v1/navigation` は keyboard capture lease の更新と navigation action
@@ -29,10 +30,15 @@ page と API は firmware に組み込まれ、internet 上の asset を使い�
 ESP32-S3 へ解決します。phone の接続確認に使われる未知の非 API GET path は
 固定 SoftAP address へ redirect します。未知の `/api/` path と GET 以外の
 request は 404 のままです。captive discovery は WPA2 の代替ではなく、
-application authentication も追加しません。
+単独では application authentication を追加しません。この example は別途
+Phase 7 の HTTP Digest authentication を有効にし、page、health check、登録
+API を保護します。phone が login page を発見できるよう discovery redirect
+自体は公開したままです。
 
-この credential は開発確認用で、sketch 内に明記されています。実運用前に
-変更してください。page は外部 CDN 等を使わず、firmware だけで動きます。
+Wi-Fi と portal の credential は開発確認用で、sketch 内に明記されています。
+実運用前に両方を変更してください。portal authentication は 1-32 byte の
+username と 8-63 byte の password を両方指定した場合だけ有効です。page は
+外部 CDN 等を使わず、firmware だけで動きます。
 
 実 keyboard sketch へ統合するときは keyboard 処理を優先するため、
 `bridge.update()`（必要ならその前の `ble.update()`）の後で

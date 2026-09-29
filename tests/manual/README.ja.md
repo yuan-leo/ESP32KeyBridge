@@ -28,8 +28,12 @@ LED output report → lock 正本の loopback は peer テスト(`usb_device_key
 - phone が ESP32 KeyBridge 設定 page を提示または自動表示することを確認する。
   OS が captive prompt を抑止した場合は任意の plain HTTP site を開き、
   `http://192.168.4.1/` へ redirect されることを確認する。
+- login challenge が表示されることを確認する。誤った login が拒否されることを
+  確認後、example username `admin`、password `configure` で sign in する。
 - internet 接続なしで設定 page が動き、未知の `/api/v1/...` path は HTML
   page ではなく JSON 404 を返すことを確認する。
+- private/incognito browser session で `/api/v1/status` を直接開き、有効な
+  portal credential を入力するまでは 401 を返すことを確認する。
 
 手順を追加するときは、必要なボード、配線、使用する example、期待される観測結果を明記します。
 

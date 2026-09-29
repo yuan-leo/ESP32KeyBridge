@@ -118,9 +118,9 @@ void setup()
     return;
   }
 
-  // 4) Start the local settings website. Connect a phone to this WPA2 network
-  // and open http://192.168.4.1/. Replace these development credentials before
-  // deploying a device.
+  // 4) Start the local settings website. Connect a phone to this WPA2 network,
+  // open http://192.168.4.1/, and sign in as admin / configure. Replace all
+  // development credentials before deploying a device.
   if (!settingsWeb.enableEditing(settingsStore, bridgeConfig, keyboardConfig))
   {
     Serial.println("Settings editing could not be enabled");
@@ -141,6 +141,8 @@ void setup()
   accessPoint.password = "keybridge";
   accessPoint.maxConnections = 1;
   accessPoint.captivePortal = true;
+  accessPoint.portalUsername = "admin";
+  accessPoint.portalPassword = "configure";
   esp32keybridge::SettingsWebError webError;
   if (!settingsWeb.begin(accessPoint, &webError))
   {
@@ -150,6 +152,8 @@ void setup()
   else
   {
     Serial.printf("Settings Wi-Fi: %s / %s\n", accessPoint.ssid, accessPoint.password);
+    Serial.printf("Portal login: %s / %s\n", accessPoint.portalUsername,
+                  accessPoint.portalPassword);
     Serial.printf("Settings URL: http://%s/\n", settingsWeb.address().toString().c_str());
   }
 }

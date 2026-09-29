@@ -18,6 +18,10 @@ Examples:
 - Expect the phone to offer or open the ESP32 KeyBridge settings page. If the
   OS suppresses its captive prompt, open any plain-HTTP site and expect a
   redirect to `http://192.168.4.1/`.
+- Expect a login challenge. Verify an incorrect login is rejected, then sign in
+  with the example username `admin` and password `configure`.
 - Verify the settings page works without internet access and an unknown
   `/api/v1/...` path still returns JSON 404 rather than the HTML page.
+- In a private/incognito browser session, request `/api/v1/status` directly and
+  verify it returns 401 until valid portal credentials are entered.
 

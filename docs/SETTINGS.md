@@ -1,8 +1,8 @@
 # Persistent local settings (ESP32-S3)
 
 Phase 1 of the locally hosted configuration work provides the layout settings
-and persistence layer. Phases 2 through 6's network view, editor, keyboard
-navigation, macro settings, and captive discovery are demonstrated by
+and persistence layer. Phases 2 through 7's network view, editor, keyboard
+navigation, macro settings, captive discovery, and portal authentication are demonstrated by
 [`SettingsPortal`](../examples/practical/SettingsPortal/).
 
 The Phase 3 API accepts a complete settings document at `PUT /api/v1/config`.
@@ -177,3 +177,31 @@ responses. `update()` services DNS alongside HTTP, and `end()` stops both.
 This feature only improves local page discovery. It does not weaken the
 required WPA2 passphrase, provision production credentials, or add an
 application authentication layer.
+
+## Portal authentication
+
+Phase 7 optionally protects the settings surface with HTTP Digest
+authentication. Supply both credentials before `begin()`:
+
+```cpp
+accessPoint.portalUsername = "device-admin";
+accessPoint.portalPassword = "replace-this-password";
+```
+
+The username must contain 1-32 bytes and the password 8-63 bytes. Supplying
+only one credential, an empty username, or an out-of-range value makes
+`begin()` fail with `InvalidPortalCredentials` before Wi-Fi starts. Omitting
+both preserves the unauthenticated behavior for sketches that deliberately
+rely only on WPA2.
+
+When enabled, the root page, health check, and every registered settings API
+route challenge with HTTP Digest authentication. Captive discovery remains
+unauthenticated: wildcard DNS and redirects reveal only the fixed portal URL,
+after which the page issues the login challenge. Unknown routes reveal no
+settings data.
+
+Digest authentication avoids sending the portal password directly in each
+request, but it is not TLS and does not encrypt response content. Keep the
+WPA2 passphrase enabled, use separate strong Wi-Fi and portal passwords, and
+replace the development credentials in the examples. Credential persistence
+or first-boot production provisioning is not part of Phase 7.

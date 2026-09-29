@@ -92,7 +92,7 @@ def test_examples_are_grouped_with_docs_and_compile_profiles():
     assert missing == []
 
 
-def test_phase6_settings_portal_is_offline_and_has_bounded_write_endpoints():
+def test_phase7_settings_portal_is_offline_authenticated_and_bounded():
     web = (ROOT / "src/ESP32KeyBridgeWeb.h").read_text(encoding="utf-8")
 
     assert 'server_.on("/", HTTP_GET' in web
@@ -114,3 +114,8 @@ def test_phase6_settings_portal_is_offline_and_has_bounded_write_endpoints():
     assert 'server_.uri() != "/api"' in web
     assert '!server_.uri().startsWith("/api/")' in web
     assert 'String("http://") + WiFi.softAPIP().toString()' in web
+    assert "InvalidPortalCredentials" in web
+    assert "mode != DIGEST_AUTH" in web
+    assert "username.equalsConstantTime(portalUsername_)" in web
+    assert 'server_.requestAuthentication(DIGEST_AUTH, "ESP32 KeyBridge"' in web
+    assert "BASIC_AUTH" not in web

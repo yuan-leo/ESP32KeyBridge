@@ -96,6 +96,7 @@ enum class SettingsWebErrorCode : uint8_t
   InvalidMaxConnections,
   WifiStartFailed,
   DnsStartFailed,
+  InvalidPortalCredentials,
 };
 
 struct SettingsWebError
@@ -112,6 +113,8 @@ struct SettingsAccessPointConfig
   bool hidden = false;
   uint8_t maxConnections = 1;
   bool captivePortal = false;
+  const char *portalUsername = nullptr;
+  const char *portalPassword = nullptr;
 };
 
 // ESP32-S3 SoftAP plus the local settings website. The sketch owns scheduling
@@ -120,6 +123,8 @@ struct SettingsAccessPointConfig
 // validated, persisted PUT endpoint. Phase 4 can bind a keyboard-navigation
 // source whose capture lease is held only while the browser page is polling.
 // Phase 6 optionally adds wildcard DNS and captive-portal probe redirects.
+// Phase 7 optionally protects the page and registered routes with HTTP Digest
+// authentication while leaving captive discovery probes reachable.
 class Esp32S3SettingsWebServer
 {
 public:
@@ -212,6 +217,16 @@ public:
       return fail(error, SettingsWebErrorCode::InvalidMaxConnections,
                   "SoftAP maxConnections must be between 1 and 4");
     }
+    const bool havePortalUsername = config.portalUsername != nullptr;
+    const bool havePortalPassword = config.portalPassword != nullptr;
+    if (havePortalUsername != havePortalPassword ||
+        (havePortalUsername &&
+         (!validLength(config.portalUsername, 1, 32) ||
+          !validLength(config.portalPassword, 8, 63))))
+    {
+      return fail(error, SettingsWebErrorCode::InvalidPortalCredentials,
+                  "portal credentials require a 1 to 32 byte username and an 8 to 63 byte password");
+    }
 
     if (!handlersRegistered_)
     {
@@ -235,6 +250,17 @@ public:
       WiFi.softAPdisconnect(true);
       return fail(error, SettingsWebErrorCode::DnsStartFailed,
                   "could not start captive-portal DNS");
+    }
+
+    authenticationEnabled_ = havePortalUsername;
+    memset(portalUsername_, 0, sizeof(portalUsername_));
+    memset(portalPassword_, 0, sizeof(portalPassword_));
+    if (authenticationEnabled_)
+    {
+      memcpy(portalUsername_, config.portalUsername,
+             strlen(config.portalUsername) + 1);
+      memcpy(portalPassword_, config.portalPassword,
+             strlen(config.portalPassword) + 1);
     }
 
     server_.begin();
@@ -272,11 +298,15 @@ public:
     WiFi.softAPdisconnect(true);
     releaseNavigationCapture();
     captivePortalEnabled_ = false;
+    authenticationEnabled_ = false;
+    memset(portalUsername_, 0, sizeof(portalUsername_));
+    memset(portalPassword_, 0, sizeof(portalPassword_));
     started_ = false;
   }
 
   bool started() const { return started_; }
   bool captivePortalEnabled() const { return started_ && captivePortalEnabled_; }
+  bool authenticationEnabled() const { return started_ && authenticationEnabled_; }
   IPAddress address() const { return started_ ? WiFi.softAPIP() : IPAddress(); }
   uint8_t connectedClients() const { return started_ ? WiFi.softAPgetStationNum() : 0; }
 
@@ -327,21 +357,88 @@ private:
         "default-src 'self'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; connect-src 'self'; frame-ancestors 'none'");
   }
 
+  bool authorize()
+  {
+    const bool authenticated = authenticationEnabled_ &&
+                               server_.authenticate(
+                                   [this](HTTPAuthMethod mode, String username,
+                                          String params[]) -> String * {
+                                     (void)params;
+                                     if (mode != DIGEST_AUTH ||
+                                         !username.equalsConstantTime(portalUsername_))
+                                     {
+                                       return nullptr;
+                                     }
+                                     return new String(portalPassword_);
+                                   });
+    if (!authenticationEnabled_ || authenticated)
+    {
+      return true;
+    }
+    commonHeaders();
+    server_.requestAuthentication(DIGEST_AUTH, "ESP32 KeyBridge",
+                                  "Authentication required\n");
+    return false;
+  }
+
   void registerHandlers()
   {
     server_.on("/", HTTP_GET, [this]() {
+      if (!authorize())
+      {
+        return;
+      }
       commonHeaders();
       server_.send_P(200, PSTR("text/html; charset=utf-8"),
                      detail::kSettingsIndexHtml);
     });
-    server_.on("/api/v1/config", HTTP_GET, [this]() { sendConfig(); });
-    server_.on("/api/v1/config", HTTP_PUT, [this]() { updateConfig(); });
-    server_.on("/api/v1/layouts", HTTP_GET, [this]() { sendLayouts(); });
-    server_.on("/api/v1/macros", HTTP_GET, [this]() { sendMacros(); });
-    server_.on("/api/v1/macros", HTTP_PUT, [this]() { updateMacros(); });
-    server_.on("/api/v1/navigation", HTTP_GET, [this]() { sendNavigation(); });
-    server_.on("/api/v1/status", HTTP_GET, [this]() { sendStatus(); });
+    server_.on("/api/v1/config", HTTP_GET, [this]() {
+      if (authorize())
+      {
+        sendConfig();
+      }
+    });
+    server_.on("/api/v1/config", HTTP_PUT, [this]() {
+      if (authorize())
+      {
+        updateConfig();
+      }
+    });
+    server_.on("/api/v1/layouts", HTTP_GET, [this]() {
+      if (authorize())
+      {
+        sendLayouts();
+      }
+    });
+    server_.on("/api/v1/macros", HTTP_GET, [this]() {
+      if (authorize())
+      {
+        sendMacros();
+      }
+    });
+    server_.on("/api/v1/macros", HTTP_PUT, [this]() {
+      if (authorize())
+      {
+        updateMacros();
+      }
+    });
+    server_.on("/api/v1/navigation", HTTP_GET, [this]() {
+      if (authorize())
+      {
+        sendNavigation();
+      }
+    });
+    server_.on("/api/v1/status", HTTP_GET, [this]() {
+      if (authorize())
+      {
+        sendStatus();
+      }
+    });
     server_.on("/healthz", HTTP_GET, [this]() {
+      if (!authorize())
+      {
+        return;
+      }
       commonHeaders();
       server_.send(200, "text/plain; charset=utf-8", "ok\n");
     });
@@ -614,11 +711,14 @@ private:
   SettingsNavigationSource *navigation_ = nullptr;
   DNSServer dnsServer_;
   WebServer server_;
+  char portalUsername_[33] = {};
+  char portalPassword_[64] = {};
   static constexpr uint32_t NavigationLeaseMilliseconds = 1200;
   uint32_t lastNavigationPollMs_ = 0;
   bool handlersRegistered_ = false;
   bool started_ = false;
   bool captivePortalEnabled_ = false;
+  bool authenticationEnabled_ = false;
   bool navigationLeaseActive_ = false;
 };
 

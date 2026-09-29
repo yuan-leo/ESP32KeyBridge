@@ -1,6 +1,8 @@
 # Changelog / 変更履歴
 
 ## Unreleased
+- (EN) Add Phase 7 opt-in HTTP Digest authentication for the ESP32-S3 settings page, health check, and all registered API routes, with strict paired credential validation and development login examples.
+- (JA) Phase 7 の opt-in HTTP Digest authentication を追加。ESP32-S3 設定 page、health check、全登録 API route を保護し、credential pair の厳密な検証と開発用 login example を実装。
 - (EN) Add Phase 6 opt-in captive-portal discovery: wildcard local DNS, fixed-AP-address redirects for unknown non-API GET probes, API-safe 404 behavior, and automatic discovery enabled in both ESP32-S3 settings examples.
 - (JA) Phase 6 の opt-in captive portal discovery を追加。local wildcard DNS、未知の非 API GET probe から固定 AP address への redirect、API の安全な 404 動作を実装し、両 ESP32-S3 設定 example で自動検出を有効化。
 - (EN) Add Phase 5 macro configuration: four F1-F24 text-macro slots, strict UTF-8 and versioned JSON validation, independent redundant NVS persistence with read-back verification, atomic live full-table replacement, and responsive browser editing.

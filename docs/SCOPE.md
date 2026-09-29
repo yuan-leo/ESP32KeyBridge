@@ -31,7 +31,7 @@ Implementation details: a Scroll Lock tap with no selector is passed through as 
 
 ## Later milestone: locally hosted configuration UI
 
-Status: **implemented (phases 1 through 6)**.
+Status: **implemented (phases 1 through 7)**.
 
 - The only supported target for this milestone is **ESP32-S3**.
 - The S3 has one USB OTG role at a time. A wired USB keyboard input therefore
@@ -65,15 +65,20 @@ Status: **implemented (phases 1 through 6)**.
   resolves names to the SoftAP and unknown non-API `GET` probe paths redirect
   to the fixed local portal address. Unknown API paths and non-GET requests
   retain their JSON 404 response, and WPA2 remains required.
+- Phase 7 adds optional HTTP Digest authentication for the page, health check,
+  and every registered API route. Captive discovery redirects remain reachable
+  before login, but they disclose no settings. Portal credentials are separate
+  from the WPA2 passphrase and validated before the SoftAP starts.
 
 - Provide a locally hosted web interface.
 - Configure keyboard-layout switching through that interface.
 - Configure macros through that interface.
 
 The current development portal uses an ESP32-S3 WPA2 SoftAP with fixed example
-credentials. Production credential provisioning and an authentication model
-beyond WPA2 are not yet specified. Macro persistence is stored independently
-rather than being added to the layout-settings record.
+credentials plus fixed example Digest credentials. Production credential
+provisioning is not yet specified; deployments must replace both sets in the
+sketch. Macro persistence is stored independently rather than being added to
+the layout-settings record.
 
 ## Explicitly not inferred
 
