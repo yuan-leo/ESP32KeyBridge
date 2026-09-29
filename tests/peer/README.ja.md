@@ -62,8 +62,8 @@ TEST_SERIAL_PORT_PEER_DEVICE_ESP32_PEER_DEVICE=/dev/ttyUSB1
 
 > **補足**: BLE の 3 本は配線不要(無線リンク)ですが、使うボードは同じ 2 台です。前回実行のペアリング状態が結果を変えないよう、開始時と終了時に両側の bond を消します。また 1 ファイル 1 test function にしています — BLE リンクは状態を持ち確立にコストがかかるため、1 回ペアリングして途中で assert していくほうが決定的になるからです(EspBle 自身の HID peer test と同じ形)。
 
-## 追加候補
+## 過去の追加候補(scope 外)
 
-- `usb_hid_cdc_config`: HID 出力と CDC 設定 reference example の最低限の共存を確認する。
+- ~~`usb_hid_cdc_config`: HID 出力と CDC 設定 reference example の最低限の共存を確認する。~~
 
 USB-to-USB bridge 全体の完全な end-to-end 自動化は、入力 source、bridge、output observer の 3 役が必要になりやすいため初期必須にしません。2台 peer では adapter 境界を優先します。

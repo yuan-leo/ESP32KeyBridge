@@ -16,8 +16,10 @@
 //   - Power the board from its UART port or a battery; the serial console on
 //     UART0 shows the pairing state.
 //
-// Pairing: the device advertises as "KeyBridge Keyboard". Pair with it from
-// the PC/phone Bluetooth settings once; bonding keeps it paired afterwards.
+// Pairing and target switching: hold Scroll Lock and press top-row 1, 2, or 3
+// to reconnect to that bonded host slot. Scroll Lock+0 replaces the currently
+// selected slot and advertises for pairing. The Scroll Lock LED shows progress
+// and returns to the host's real lock state afterwards.
 
 #include <ESP32KeyBridge.h>
 #include <ESP32KeyBridgeEspBle.h>
@@ -29,7 +31,9 @@ EspUsbHost usbHost; // keyboard side
 EspBle ble;         // PC / phone side
 
 esp32keybridge::ESP32KeyBridge bridge;
-esp32keybridge::EspUsbHostKeyboardInputAdapter keyboard(usbHost);
+esp32keybridge::EspUsbHostKeyboardInputAdapter rawKeyboard(usbHost);
+esp32keybridge::EspBleHidTargetController bluetoothTargets(ble);
+esp32keybridge::BluetoothHotkeyInputAdapter keyboard(rawKeyboard, bluetoothTargets);
 esp32keybridge::EspBleHidOutputAdapter host(ble);
 
 void setup()
@@ -53,10 +57,8 @@ void setup()
   }
   ble.advertising().setName(bleConfig.deviceName);
   ble.advertising().start();
-  // Advertise again after the host walks away, so it can come back.
-  ble.onDisconnected([](const EspBleConnection &) { ble.advertising().start(); });
 
-  // 2) Wire the bridge: USB keyboard in, BLE HID out.
+  // 2) Wire the bridge: USB keyboard + target hotkeys in, BLE HID out.
   bridge.addInput(keyboard);
   bridge.addOutput(host);
 

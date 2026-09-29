@@ -4,6 +4,10 @@
 
 ESP32KeyBridge is an Arduino library that puts an ESP32 **between a keyboard and the machine that reads it**. It takes keyboard-shaped input from one or more adapters (USB Host, BLE or Bluetooth Classic HID Host, GPIO switches, a matrix, a rotary encoder), normalizes it into one key model, applies remapping, layers, macros and keyboard-layout conversion, and writes the result to one or more outputs (USB Device HID, BLE or Classic HID, a serial `Print`).
 
+> **Scope policy:** this repository documents the software that exists. It does not create product scope. Only features explicitly agreed in the associated ChatGPT conversation are in scope; unimplemented ideas retained in historical notes are out of scope unless explicitly brought back into scope there.
+>
+> The currently agreed additions and their status are tracked in [docs/SCOPE.md](docs/SCOPE.md).
+
 The result is a device the PC cannot tell apart from an ordinary keyboard — no drivers, no software on the host, and nothing to configure on the keyboard either.
 
 The bridge core is portable C++ with **no dependency on Arduino, ESP-IDF, or any hardware**: it never reads a clock, never allocates, and runs from a single `update()` call. Everything platform-specific lives in adapters, so the whole transformation layer is unit-tested on the host machine.
@@ -41,8 +45,9 @@ Adapter headers are header-only, so a sketch pulls in a dependency only by inclu
 | `ESP32KeyBridge.h` | — | `ManualInputAdapter`, `ManualOutputAdapter` (reference implementations and test doubles) |
 | `ESP32KeyBridgeEspUsbHost.h` | [EspUsbHost](https://github.com/tanakamasayuki/EspUsbHost) 2.6.0+ | USB keyboard (consumer keys included), mouse, gamepad, MIDI input |
 | `ESP32KeyBridgeEspUsbDevice.h` | [EspUsbDevice](https://github.com/tanakamasayuki/EspUsbDevice) 2.0.0+ | Composite USB HID output (keyboard + consumer + mouse) |
-| `ESP32KeyBridgeEspBle.h` | [EspBle](https://github.com/tanakamasayuki/EspBle) 1.2.0+ | BLE HID output (peripheral) and BLE keyboard / mouse / gamepad input (central) |
-| `ESP32KeyBridgeEspBleClassic.h` | EspBle 1.3.0+ | Bluetooth Classic HID output and Classic keyboard / mouse input (**original ESP32 only**) |
+| `ESP32KeyBridgeEspBle.h` | [EspBle](https://github.com/tanakamasayuki/EspBle) 1.3.0+ | BLE HID output (peripheral), bonded-target switching, and BLE keyboard / mouse / gamepad input (central) |
+| `ESP32KeyBridgeBluetooth.h` | — | Transport-neutral Scroll Lock + number target hotkeys and LED status wrapper |
+| `ESP32KeyBridgeEspBleClassic.h` | EspBle 1.3.0+ | Legacy Bluetooth Classic implementation requiring the original ESP32 (**unsupported / out of scope**) |
 | `ESP32KeyBridgeGpio.h` | — (Arduino GPIO; the encoder uses PCNT) | Single keys, a scanned key matrix, a rotary encoder |
 | `ESP32KeyBridgeSerial.h` | — (Arduino `Print`) | Text output and a human-readable debug log |
 
@@ -50,20 +55,18 @@ The full table with per-adapter behavior, `update()` timing tolerance, and USB d
 
 ## Compatibility
 
-The core builds anywhere a C++ compiler runs — the unit tests compile it for the host machine. What each chip can *bridge* depends on which adapters it can run:
+The only officially supported target is **ESP32-S3**.
 
-| | ESP32 | S2 | S3 | C3 / C6 / H2 | P4 |
-| --- | --- | --- | --- | --- | --- |
-| GPIO keys / matrix | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Rotary encoder (PCNT) | ✅ | ✅ | ✅ | ✅ | ✅ |
-| USB Host input | — | ✅ | ✅ | — | ✅ |
-| USB Device output | — | ✅ | ✅ | — | ✅ |
-| BLE HID in / out | ✅ | — | ✅ | ✅ | via ESP-Hosted |
-| Bluetooth Classic HID in / out | ✅ | — | — | — | — |
+| Capability | ESP32-S3 |
+| --- | --- |
+| GPIO keys / matrix | ✅ |
+| Rotary encoder (PCNT) | ✅ |
+| USB Host input | ✅ |
+| USB Device output | ✅ |
+| BLE HID input / output | ✅ |
+| Bluetooth Classic HID | — |
 
-USB-to-USB bridging (a USB keyboard in, a USB HID device out) needs **two USB roles at once**, so it needs an **ESP32-P4**. A bridge with BLE on one side uses only one USB role and runs on a single-USB **ESP32-S3** — which is what the `UsbKeyboardToBle` and `BleKeyboardToUsb` examples do.
-
-Bluetooth Classic needs a BR/EDR radio and therefore runs on the **original ESP32 only**. Use it for a legacy peer that cannot speak BLE HID; otherwise BLE is the default because it supports more SoCs and consumes less power.
+The S3 has one native USB controller, so a design may use it as USB Host or USB Device while using BLE on the other side. Source code or historical examples for other ESP32 variants remain unsupported and outside the agreed scope.
 
 Development and the example builds run on arduino-esp32 3.3.11; each example's `sketch.yaml` pins the verified core and library versions.
 
@@ -133,6 +136,7 @@ See the [examples index](examples/README.md) for the full list — every example
 Design documents are Japanese-only; the READMEs and the examples are bilingual.
 
 - [Beginner's guide (start here)](docs/GUIDE_BASICS.md)
+- [Agreed product scope](docs/SCOPE.md)
 - [Adapter list, behavior, and dependencies](docs/ADAPTERS.md)
 - [Data model: key identity, lock state, layout conversion](docs/DATA_MODEL.md)
 - [Core design and the time / concurrency boundary](docs/CORE_DESIGN.md)
@@ -140,7 +144,7 @@ Design documents are Japanese-only; the READMEs and the examples are bilingual.
 - [Requirements](docs/REQUIREMENTS.ja.md)
 - [Design decision ledger](docs/DECISIONS.ja.md)
 - [Configuration design notes](docs/CONFIGURATION.ja.md)
-- [Development plan and remaining work](docs/DEVELOPMENT_PLAN.ja.md)
+- [Implementation history and closed scope](docs/DEVELOPMENT_PLAN.ja.md)
 - [Test plan](tests/TEST_PLAN.ja.md) and [test layout](tests/README.ja.md)
 - [Release checklist](docs/RELEASE_CHECKLIST.md)
 

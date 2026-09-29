@@ -1,0 +1,60 @@
+# Agreed Product Scope
+
+This file records only product features explicitly added to scope in the associated ChatGPT conversation. Repository notes, TODOs, examples, and historical design ideas do not add scope by themselves.
+
+## Supported hardware
+
+The only supported target device is **ESP32-S3**. Code paths, examples, or historical notes for other ESP32 variants do not make those devices supported or in scope.
+
+## Current milestone: Bluetooth target switching
+
+Status: **implemented**.
+
+- A keyboard hotkey switches which paired Bluetooth device is connected.
+- The default hotkey modifier is **Scroll Lock held down**.
+- While Scroll Lock is held, a **top-row number key** selects the corresponding Bluetooth device slot.
+- Slots run from `1` through the maximum number of devices supported by the selected Bluetooth stack and target hardware. This document does not invent a fixed maximum.
+- Connection switching uses the selected stored/paired device rather than requiring a new pairing operation for every switch.
+- `Scroll Lock` + top-row `0` puts Bluetooth into pairing mode for the currently selected device slot.
+- When the physical keyboard supports a Scroll Lock LED output report, the bridge flashes that LED to indicate Bluetooth switching/pairing status.
+- Status indication is best-effort: keyboards without a Scroll Lock LED, or keyboards that ignore LED reports, must still support switching and pairing without visual feedback.
+- Temporary status flashing must preserve and restore the effective Scroll Lock state after indication finishes.
+
+Default chord examples:
+
+- `Scroll Lock` + top-row `1` selects Bluetooth device slot 1.
+- `Scroll Lock` + top-row `2` selects Bluetooth device slot 2.
+- The same pattern continues through the supported slot limit.
+- `Scroll Lock` + top-row `0` starts pairing for whichever slot is currently selected.
+
+Implementation details: a Scroll Lock tap with no selector is passed through as a normal tap. Switching flashes at 125 ms, pairing at 250 ms, success shows a 400 ms pulse, and failure uses three 100 ms pulses. `EspBleHidTargetController` exposes the three bond slots supported by EspBle's bundled NimBLE build; another target controller can expose a different stack/hardware limit.
+
+## Later milestone: locally hosted configuration UI
+
+Status: **in progress (phases 1 and 2 implemented)**.
+
+- The only supported target for this milestone is **ESP32-S3**.
+- The S3 has one USB OTG role at a time. A wired USB keyboard input therefore
+  uses BLE for the computer output; a wired USB computer output requires a BLE
+  keyboard input. Dual wired USB bridging is not part of this milestone.
+- Phase 1 provides a versioned keyboard-layout settings model, strict
+  validation, redundant NVS persistence, and boot-time fallback to safe
+  defaults or the previous valid record. Integration details are in
+  [SETTINGS.md](SETTINGS.md).
+- Phase 1 models one keyboard input. Several physical keyboards merged by one
+  adapter share that input's engraving layout.
+- Phase 2 provides an ESP32-S3 WPA2 SoftAP, an offline read-only settings page,
+  and versioned `GET` endpoints for configuration and live status. It does not
+  expose mutation endpoints, captive-portal DNS, or keyboard navigation.
+
+- Provide a locally hosted web interface.
+- Configure keyboard-layout switching through that interface.
+- Configure macros through that interface.
+
+The website hosting mechanism, authentication model, and network transport are
+not yet specified and are not implicitly added to scope. Macro persistence is
+also not part of the phase 1 layout-settings record.
+
+## Explicitly not inferred
+
+No other repository roadmap item, struck historical proposal, or unimplemented adapter is in scope unless it is explicitly added in ChatGPT.

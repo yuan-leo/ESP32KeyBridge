@@ -6,13 +6,15 @@ What to confirm before releasing `ESP32KeyBridge`. Version bumps and releases fo
 
 ## Documentation
 
+- `docs/SCOPE.md` contains only features explicitly agreed in ChatGPT and accurately marks their implementation status.
+- Public support claims and release validation name ESP32-S3 as the only supported target.
 - The feature, adapter, and compatibility tables in `README.md` / `README.ja.md` match the implementation.
-- The status column in `docs/ADAPTERS.ja.md` (**implemented, hardware-verification pending** / **implemented, hardware-verified** / **planned**) matches reality.
+- The status column in `docs/ADAPTERS.ja.md` (**implemented, hardware-verification pending** / **implemented, hardware-verified** / **out of scope**) matches reality.
 - The lists in `examples/README.md` / `examples/README.ja.md` match `examples/practical/` (checked automatically by `tests/unit/test_repository_structure.py`).
 - The gap between `docs/REQUIREMENTS.ja.md` and what is implemented can be explained.
 - The core / adapter / example boundary and the callback-context rules in `docs/CORE_DESIGN.ja.md` match the implementation.
-- The core-independence and WebSerial / CDC reference-example policy in `docs/CONFIGURATION.ja.md` matches the implementation.
-- `docs/DEVELOPMENT_PLAN.ja.md` reflects the current direction and remaining work.
+- `docs/CONFIGURATION.ja.md` remains clearly marked as out-of-scope historical material.
+- `docs/DEVELOPMENT_PLAN.ja.md` reflects the closed agreed scope and does not invent remaining work.
 - `docs/DECISIONS.ja.md` records the design decisions settled since the previous release.
 - `tests/README.ja.md` / `tests/TEST_PLAN.ja.md` match the current test layout and coverage.
 

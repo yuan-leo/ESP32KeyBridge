@@ -50,7 +50,7 @@ USB Host / USB Device、GPIO、BLE、UART、WebSerial、NVS、JSON などは cor
   - EspBle: スタック task はイベントをキューへ積むだけで、利用者コールバックは `EspBle::update()` を呼んだコンテキストから配送される。したがってアダプタ側の同期は不要で、代わりに**スケッチが `ble.update()` を `bridge.update()` と同じコンテキストで呼ぶ**ことが前提になる。
 - アダプタの責務は「内部の並行処理から `update()` 呼び出しコンテキストへのスレッドセーフな引き渡し」まで。押下集合への反映・変換・出力はすべて `update()` の単一コンテキストで行う。
 - この分担により、スケッチの loop が他処理で詰まっても入力の取りこぼしは起きない(アダプタ内で確定済み)。遅れるのは変換と出力だけ。**例外は `GpioKeyInputAdapter`**(サンプリングが `update()` 内 = loop レート依存)で、ペダル・ボタンのような押下の長い入力専用と割り切っている。アダプタごとの一覧は [ADAPTERS.ja.md](ADAPTERS.ja.md) の「update() 頻度と取りこぼし耐性」を参照。
-- ブリッジ自身を task で自動駆動する仕組みは core には入れない(排他が `applyConfig()` / `typeText()` へ波及するため)。必要になれば Arduino 層の opt-in ラッパーとして追加する([DECISIONS.ja.md](DECISIONS.ja.md) 将来メモ)。
+- ~~ブリッジ自身を task で自動駆動する opt-in ラッパー~~は scope 外。呼び出し側が `update()` を駆動する。
 
 ## 制御プレーン
 
@@ -58,7 +58,7 @@ USB Host / USB Device、GPIO、BLE、UART、WebSerial、NVS、JSON などは cor
 
 - レイヤーの有効状態(virtual キーの押下で変化)
 - レイアウト変換の on/off(ホットキー = virtual キー、または外部コマンドで変化)
-- (将来)アクティブ出力の選択
+- ~~アクティブ出力の選択~~(scope 外)
 
 virtual キーの消費先は「レイヤー」「マクロ起動」「モード変更」の 3 系統です。外部からの設定変更(シリアル CLI、WebSerial 等)も同じ制御プレーンに入ります。設定変更が適用された瞬間に押下中のキーがある場合も、press 時確定の原則により release は破綻しません。
 

@@ -1,5 +1,10 @@
 #include <ESP32KeyBridge.h>
+#include <ESP32KeyBridgeBluetooth.h>
+#include <ESP32KeyBridgeSettings.h>
 #include <ESP32KeyBridgeSerial.h>
+#if defined(ARDUINO_ARCH_ESP32)
+#include <ESP32KeyBridgePreferences.h>
+#endif
 #include <cassert>
 #include <cstring>
 
@@ -40,6 +45,327 @@ private:
   char buffer_[Capacity] = {};
   size_t length_ = 0;
 };
+
+class FakeLayoutSettingsStorage : public esp32keybridge::LayoutSettingsBlobStorage
+{
+public:
+  esp32keybridge::SettingsBlobReadStatus read(uint8_t slot, uint8_t *data,
+                                             size_t capacity, size_t &size) override
+  {
+    size = 0;
+    if (slot > 1 || readFails[slot])
+    {
+      return esp32keybridge::SettingsBlobReadStatus::Error;
+    }
+    if (!present[slot])
+    {
+      return esp32keybridge::SettingsBlobReadStatus::NotFound;
+    }
+    size = lengths[slot];
+    if (lengths[slot] <= capacity)
+    {
+      std::memcpy(data, bytes[slot], lengths[slot]);
+    }
+    return esp32keybridge::SettingsBlobReadStatus::Read;
+  }
+
+  bool write(uint8_t slot, const uint8_t *data, size_t size) override
+  {
+    if (slot > 1 || writeFails[slot] || size > Capacity)
+    {
+      return false;
+    }
+    std::memcpy(bytes[slot], data, size);
+    lengths[slot] = size;
+    present[slot] = true;
+    return true;
+  }
+
+  bool erase(uint8_t slot) override
+  {
+    if (slot > 1 || eraseFails[slot])
+    {
+      return false;
+    }
+    present[slot] = false;
+    lengths[slot] = 0;
+    return true;
+  }
+
+  void corrupt(uint8_t slot, size_t offset)
+  {
+    assert(slot < 2 && present[slot] && offset < lengths[slot]);
+    bytes[slot][offset] ^= 0x5a;
+  }
+
+  static constexpr size_t Capacity = esp32keybridge::KeyboardLayoutSettingsCodec::EncodedSize;
+  uint8_t bytes[2][Capacity] = {};
+  size_t lengths[2] = {};
+  bool present[2] = {};
+  bool readFails[2] = {};
+  bool writeFails[2] = {};
+  bool eraseFails[2] = {};
+};
+
+static void test_layout_settings_validate_and_apply()
+{
+  esp32keybridge::KeyboardLayoutSettings settings;
+  esp32keybridge::LayoutSettingsError error;
+  assert(settings.validate(&error));
+  assert(std::strcmp(settings.inputLayoutName(), "en_us") == 0);
+  assert(std::strcmp(settings.hostLayoutName(), "en_us") == 0);
+  assert(!settings.layoutConversionEnabled());
+  assert(settings.layoutConversionToggleUsage() ==
+         static_cast<uint16_t>(esp32keybridge::KeyboardUsage::Pause));
+
+  assert(settings.setInputLayoutName("en_us", &error));
+  assert(settings.setHostLayoutName("ja_jp", &error));
+  assert(settings.setLayoutConversionToggleUsage(
+      static_cast<uint16_t>(esp32keybridge::KeyboardUsage::F12), &error));
+  settings.setLayoutConversionEnabled(true);
+  assert(!settings.setInputLayoutName("not_a_layout", &error));
+  assert(error.code == esp32keybridge::LayoutSettingsErrorCode::InvalidInputLayout);
+  assert(std::strcmp(settings.inputLayoutName(), "en_us") == 0); // failed setter is atomic
+  assert(!settings.setLayoutConversionToggleUsage(0x80, &error));
+
+  esp32keybridge::ESP32KeyBridge bridge;
+  esp32keybridge::ManualInputAdapter keyboard;
+  esp32keybridge::ManualOutputAdapter output;
+  esp32keybridge::ESP32KeyBridgeConfig config;
+  esp32keybridge::InputConfig &inputConfig = config.addInputConfig();
+  assert(bridge.addInput(keyboard, inputConfig));
+  assert(bridge.addOutput(output));
+  assert(settings.apply(bridge, config, inputConfig, &error));
+  assert(bridge.layoutConversionEnabled());
+
+  // On ja_jp, the en_us Shift+2 character '@' is emitted by LeftBracket
+  // without Shift. This proves both saved layout names reached the core.
+  assert(keyboard.press(esp32keybridge::KeyboardUsage::LeftShift));
+  assert(keyboard.press(esp32keybridge::KeyboardUsage::Digit2));
+  bridge.update();
+  assert(output.keys().contains(esp32keybridge::KeyboardUsage::LeftBracket));
+  assert(!output.keys().contains(esp32keybridge::KeyboardUsage::LeftShift));
+}
+
+static void test_layout_settings_codec_rejects_corruption()
+{
+  esp32keybridge::KeyboardLayoutSettings original;
+  assert(original.setInputLayoutName("de_de"));
+  assert(original.setHostLayoutName("en_gb"));
+  original.setLayoutConversionEnabled(true);
+
+  uint8_t record[esp32keybridge::KeyboardLayoutSettingsCodec::EncodedSize] = {};
+  esp32keybridge::LayoutSettingsError error;
+  assert(esp32keybridge::KeyboardLayoutSettingsCodec::encode(
+      original, 7, record, sizeof(record), &error));
+
+  esp32keybridge::KeyboardLayoutSettings decoded;
+  uint32_t generation = 0;
+  assert(esp32keybridge::KeyboardLayoutSettingsCodec::decode(
+             record, sizeof(record), decoded, generation, &error) ==
+         esp32keybridge::LayoutSettingsDecodeStatus::Loaded);
+  assert(decoded == original);
+  assert(generation == 7);
+
+  record[20] ^= 0x01;
+  assert(esp32keybridge::KeyboardLayoutSettingsCodec::decode(
+             record, sizeof(record), decoded, generation, &error) ==
+         esp32keybridge::LayoutSettingsDecodeStatus::Invalid);
+  assert(error.code == esp32keybridge::LayoutSettingsErrorCode::ChecksumMismatch);
+}
+
+static void test_layout_settings_store_defaults_and_round_trip()
+{
+  FakeLayoutSettingsStorage storage;
+  esp32keybridge::KeyboardLayoutSettingsStore store(storage);
+  esp32keybridge::KeyboardLayoutSettings loaded;
+  esp32keybridge::LayoutSettingsError error;
+  assert(store.loadOrDefault(loaded, &error) ==
+         esp32keybridge::LayoutSettingsLoadStatus::DefaultsNoSavedSettings);
+  assert(std::strcmp(loaded.inputLayoutName(), "en_us") == 0);
+
+  esp32keybridge::KeyboardLayoutSettings saved;
+  assert(saved.setInputLayoutName("fr_fr"));
+  assert(saved.setHostLayoutName("de_de"));
+  saved.setLayoutConversionEnabled(true);
+  assert(store.save(saved, &error));
+  assert(storage.present[0] && !storage.present[1]);
+  assert(store.loadOrDefault(loaded, &error) ==
+         esp32keybridge::LayoutSettingsLoadStatus::Loaded);
+  assert(loaded == saved);
+
+  saved.setLayoutConversionEnabled(false);
+  assert(store.save(saved, &error));
+  assert(storage.present[0] && storage.present[1]);
+  assert(store.loadOrDefault(loaded, &error) ==
+         esp32keybridge::LayoutSettingsLoadStatus::Loaded);
+  assert(loaded == saved);
+}
+
+static void test_layout_settings_store_recovers_previous_record()
+{
+  FakeLayoutSettingsStorage storage;
+  esp32keybridge::KeyboardLayoutSettingsStore store(storage);
+  esp32keybridge::KeyboardLayoutSettings first;
+  esp32keybridge::KeyboardLayoutSettings second;
+  assert(first.setHostLayoutName("ja_jp"));
+  assert(second.setHostLayoutName("de_de"));
+  assert(store.save(first));  // slot 0, generation 1
+  assert(store.save(second)); // slot 1, generation 2
+
+  storage.corrupt(1, 24); // newest record fails CRC; older one remains valid
+  esp32keybridge::KeyboardLayoutSettings loaded;
+  esp32keybridge::LayoutSettingsError error;
+  assert(store.loadOrDefault(loaded, &error) ==
+         esp32keybridge::LayoutSettingsLoadStatus::LoadedRecovered);
+  assert(loaded == first);
+  assert(error.code == esp32keybridge::LayoutSettingsErrorCode::ChecksumMismatch);
+
+  storage.corrupt(0, 25);
+  assert(store.loadOrDefault(loaded, &error) ==
+         esp32keybridge::LayoutSettingsLoadStatus::DefaultsInvalidSettings);
+  assert(std::strcmp(loaded.hostLayoutName(), "en_us") == 0);
+  assert(!loaded.layoutConversionEnabled());
+}
+
+static void test_layout_settings_store_does_not_write_after_read_error()
+{
+  FakeLayoutSettingsStorage storage;
+  esp32keybridge::KeyboardLayoutSettingsStore store(storage);
+  esp32keybridge::KeyboardLayoutSettings settings;
+  esp32keybridge::LayoutSettingsError error;
+  storage.readFails[1] = true;
+  assert(!store.save(settings, &error));
+  assert(error.code == esp32keybridge::LayoutSettingsErrorCode::StorageReadFailed);
+  assert(!storage.present[0] && !storage.present[1]);
+}
+
+class FakeBluetoothTarget : public esp32keybridge::BluetoothTargetController
+{
+public:
+  size_t slotCount() const override { return slots; }
+  bool selectSlot(size_t slot) override
+  {
+    ++selectCalls;
+    lastSlot = slot;
+    if (!accept)
+    {
+      state = esp32keybridge::BluetoothTargetStatus::Failed;
+      return false;
+    }
+    selected = slot;
+    state = esp32keybridge::BluetoothTargetStatus::Switching;
+    return true;
+  }
+  bool pairSlot(size_t slot) override
+  {
+    ++pairCalls;
+    lastSlot = slot;
+    state = accept ? esp32keybridge::BluetoothTargetStatus::Pairing
+                   : esp32keybridge::BluetoothTargetStatus::Failed;
+    return accept;
+  }
+  size_t selectedSlot() const override { return selected; }
+  esp32keybridge::BluetoothTargetStatus status() const override { return state; }
+  uint32_t nowMilliseconds() const override { return now; }
+
+  size_t slots = 3;
+  size_t selected = 1;
+  size_t lastSlot = 0;
+  size_t selectCalls = 0;
+  size_t pairCalls = 0;
+  uint32_t now = 0;
+  bool accept = true;
+  esp32keybridge::BluetoothTargetStatus state =
+      esp32keybridge::BluetoothTargetStatus::Idle;
+};
+
+static void test_bluetooth_target_hotkeys_are_consumed()
+{
+  esp32keybridge::ManualInputAdapter keyboard;
+  FakeBluetoothTarget target;
+  esp32keybridge::BluetoothHotkeyInputAdapter hotkeys(keyboard, target);
+
+  keyboard.press(esp32keybridge::KeyboardUsage::ScrollLock);
+  keyboard.press(esp32keybridge::KeyboardUsage::Digit2);
+  hotkeys.update();
+  assert(target.selectCalls == 1);
+  assert(target.lastSlot == 2);
+  assert(hotkeys.keys().count() == 0);
+
+  keyboard.clear();
+  hotkeys.update();
+  assert(hotkeys.keys().count() == 0); // a handled chord is not a Scroll Lock tap
+
+  keyboard.press(esp32keybridge::KeyboardUsage::ScrollLock);
+  keyboard.press(esp32keybridge::KeyboardUsage::Digit0);
+  hotkeys.update();
+  assert(target.pairCalls == 1);
+  assert(target.lastSlot == 2); // pair the currently selected slot
+  assert(hotkeys.keys().count() == 0);
+}
+
+static void test_bluetooth_hotkey_preserves_tap_and_other_chords()
+{
+  esp32keybridge::ManualInputAdapter keyboard;
+  FakeBluetoothTarget target;
+  esp32keybridge::BluetoothHotkeyInputAdapter hotkeys(keyboard, target);
+
+  keyboard.press(esp32keybridge::KeyboardUsage::ScrollLock);
+  hotkeys.update();
+  assert(hotkeys.keys().count() == 0);
+  keyboard.clear();
+  hotkeys.update();
+  assert(hotkeys.keys().contains(esp32keybridge::KeyboardUsage::ScrollLock));
+  hotkeys.update();
+  assert(hotkeys.keys().count() == 0);
+
+  // Slot 4 is unsupported by this target, so Scroll Lock+4 stays an ordinary
+  // keyboard chord instead of being swallowed.
+  keyboard.press(esp32keybridge::KeyboardUsage::ScrollLock);
+  keyboard.press(esp32keybridge::KeyboardUsage::Digit4);
+  hotkeys.update();
+  assert(hotkeys.keys().contains(esp32keybridge::KeyboardUsage::ScrollLock));
+  assert(hotkeys.keys().contains(esp32keybridge::KeyboardUsage::Digit4));
+  assert(target.selectCalls == 0);
+
+  keyboard.clear();
+  hotkeys.update();
+  keyboard.press(esp32keybridge::KeyboardUsage::Digit1);
+  hotkeys.update();
+  keyboard.press(esp32keybridge::KeyboardUsage::ScrollLock);
+  hotkeys.update();
+  assert(hotkeys.keys().contains(esp32keybridge::KeyboardUsage::ScrollLock));
+  assert(hotkeys.keys().contains(esp32keybridge::KeyboardUsage::Digit1));
+  assert(target.selectCalls == 0); // selector must be pressed after the modifier
+}
+
+static void test_bluetooth_status_led_restores_effective_lock_state()
+{
+  esp32keybridge::ManualInputAdapter keyboard;
+  FakeBluetoothTarget target;
+  esp32keybridge::BluetoothHotkeyInputAdapter hotkeys(keyboard, target);
+  esp32keybridge::LockState locks;
+  locks.capsLock = true;
+  locks.scrollLock = false;
+  hotkeys.setLockState(locks);
+  assert(keyboard.lockState().capsLock);
+  assert(!keyboard.lockState().scrollLock);
+
+  keyboard.press(esp32keybridge::KeyboardUsage::ScrollLock);
+  keyboard.press(esp32keybridge::KeyboardUsage::Digit1);
+  hotkeys.update();
+  assert(keyboard.lockState().scrollLock); // switching indication
+
+  target.state = esp32keybridge::BluetoothTargetStatus::Connected;
+  target.now = 10;
+  hotkeys.update();
+  assert(keyboard.lockState().scrollLock); // success pulse
+  target.now = 500;
+  hotkeys.update();
+  assert(keyboard.lockState().capsLock);
+  assert(!keyboard.lockState().scrollLock); // original state restored
+}
 
 static void test_key_identity_is_kind_plus_code()
 {
@@ -1922,8 +2248,16 @@ static void run(const char *name, void (*test)())
 
 static void runAllTests()
 {
+  run("layout_settings_validate_and_apply", test_layout_settings_validate_and_apply);
+  run("layout_settings_codec_rejects_corruption", test_layout_settings_codec_rejects_corruption);
+  run("layout_settings_store_defaults_and_round_trip", test_layout_settings_store_defaults_and_round_trip);
+  run("layout_settings_store_recovers_previous_record", test_layout_settings_store_recovers_previous_record);
+  run("layout_settings_store_does_not_write_after_read_error", test_layout_settings_store_does_not_write_after_read_error);
   run("key_identity_is_kind_plus_code", test_key_identity_is_kind_plus_code);
   run("key_converts_implicitly_from_usage_enums", test_key_converts_implicitly_from_usage_enums);
+  run("bluetooth_target_hotkeys_are_consumed", test_bluetooth_target_hotkeys_are_consumed);
+  run("bluetooth_hotkey_preserves_tap_and_other_chords", test_bluetooth_hotkey_preserves_tap_and_other_chords);
+  run("bluetooth_status_led_restores_effective_lock_state", test_bluetooth_status_led_restores_effective_lock_state);
   run("key_kind_names", test_key_kind_names);
   run("key_set_press_release", test_key_set_press_release);
   run("key_set_holds_mixed_kinds", test_key_set_holds_mixed_kinds);

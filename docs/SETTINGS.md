@@ -1,0 +1,98 @@
+# Persistent layout settings (ESP32-S3)
+
+Phase 1 of the locally hosted configuration work provides the settings and
+persistence layer. Phase 2's read-only network view is demonstrated by
+[`SettingsPortal`](../examples/practical/SettingsPortal/).
+
+## Stored settings
+
+`KeyboardLayoutSettings` contains:
+
+- the attached keyboard's engraving/input layout;
+- the host operating system's layout;
+- the keyboard usage that toggles conversion (`0` disables the hotkey); and
+- whether layout conversion starts enabled.
+
+The model represents one logical keyboard input. If an adapter merges several
+physical keyboards, they share the same engraving layout.
+
+Layout names are checked with `KeyboardLayout::byName()`. Toggle keys accept
+only the named values exposed by `KeyboardUsage`, or zero. Failed setters leave
+the previous value unchanged.
+
+## Persistence and recovery
+
+`KeyboardLayoutSettingsStore` is platform-independent and uses two blob slots.
+Each save writes the slot that does not contain the newest valid record, then
+reads it back and verifies its version, contents, and CRC-32. The previous
+record therefore remains available if a write is interrupted or the newest
+record is damaged.
+
+`PreferencesLayoutSettingsStorage` supplies the ESP32 NVS backend. It stores
+the slots as `layout_a` and `layout_b` in the `ekb` namespace.
+
+At boot, `loadOrDefault()` returns one of these outcomes:
+
+- `Loaded`: newest valid saved settings loaded;
+- `LoadedRecovered`: the other slot was bad, but a valid record was recovered;
+- `DefaultsNoSavedSettings`: first boot or settings were cleared;
+- `DefaultsInvalidSettings`: saved records existed but neither was valid; or
+- `DefaultsStorageError`: NVS could not be read.
+
+Every non-loaded result leaves `KeyboardLayoutSettings` at safe defaults:
+`en_us` input, `en_us` host, conversion disabled, and Pause as the conversion
+toggle.
+
+## Boot integration
+
+```cpp
+#include <ESP32KeyBridge.h>
+#include <ESP32KeyBridgePreferences.h>
+#include <ESP32KeyBridgeSettings.h>
+
+esp32keybridge::ESP32KeyBridge bridge;
+esp32keybridge::PreferencesLayoutSettingsStorage settingsNvs;
+esp32keybridge::KeyboardLayoutSettingsStore settingsStore(settingsNvs);
+esp32keybridge::KeyboardLayoutSettings layoutSettings;
+esp32keybridge::ESP32KeyBridgeConfig config;
+
+// Use the USB, BLE, or other S3 adapters appropriate for the product.
+// `keyboard` and `output` below stand for those adapter instances.
+
+void setup()
+{
+  esp32keybridge::LayoutSettingsError error;
+  const esp32keybridge::LayoutSettingsLoadStatus loadStatus =
+      settingsStore.loadOrDefault(layoutSettings, &error);
+  (void)loadStatus; // Report or log recovery here if desired.
+
+  esp32keybridge::InputConfig &keyboardConfig = config.addInputConfig();
+  bridge.addInput(keyboard, keyboardConfig);
+  bridge.addOutput(output);
+
+  // Keep this call in the same context that will call bridge.update().
+  layoutSettings.apply(bridge, config, keyboardConfig, &error);
+}
+```
+
+When the later web UI receives an edit, build a candidate copy and use its
+setters. Save and apply it only after every submitted field is accepted. HTTP
+callbacks must hand the candidate to the main loop rather than calling
+`apply()` from a network task.
+
+```cpp
+esp32keybridge::KeyboardLayoutSettings candidate = layoutSettings;
+esp32keybridge::LayoutSettingsError error;
+
+if (candidate.setInputLayoutName("en_us", &error) &&
+    candidate.setHostLayoutName("ja_jp", &error) &&
+    settingsStore.save(candidate, &error))
+{
+  layoutSettings = candidate;
+  layoutSettings.apply(bridge, config, keyboardConfig, &error);
+}
+```
+
+The host layout is a declaration of how the connected computer already
+interprets HID keys. Applying this setting does not change the operating
+system's keyboard layout.

@@ -22,7 +22,7 @@ A key or button's identity is the pair **(kind, code)**. Each kind has its own i
 | consumer | numerically identical to the HID consumer page (0x0C) Usage ID | Volume Up=0x00E9, Mute=0x00E2, Play/Pause=0x00CD |
 | mouse_button | button number | left=1, right=2, middle=3, ... |
 | virtual | bridge-internal only (layer triggers, macro triggers, mode toggles) | numbered freely. **Never reaches an output adapter** |
-| (future) | System Control, absolute coordinates, ... | |
+| ~~Future extensions~~ | ~~System Control, absolute coordinates, ...~~ | Out of scope |
 
 - A keyboard code is a **layout-independent physical key identifier**. A JIS keyboard and a US keyboard both send 0x04 for the key where A sits; interpreting the engraving is the host's job.
 - Keeping HID-derived kinds numerically identical to their usages means pass-through and remapping **need no conversion table at all**.
@@ -65,7 +65,7 @@ Everything flowing through the intermediate representation falls into one of two
 - A physical Fn key never appears on HID, so it can be neither observed, shared, nor remapped (a limit in principle). The equivalent is built by remapping a key that *does* reach HID into a virtual key, consuming it, and enabling a layer (an overlay substitution table) while it is held. A keyboard you built yourself can emit virtual keys directly from its adapter's assignment.
 - **The substitution is fixed at press time, and a release releases what was resolved then** (the rule that must hold, so that releasing after a layer is dismissed cannot create a stuck key).
 - Layer state is managed after merging and by default **applies to every input** (the basis for split keyboards and foot-pedal Fn).
-- Tap/hold (tap for the original key, hold for Fn) is time-dependent and out of scope for v1 (noted as future work).
+- ~~Tap/hold (tap for the original key, hold for Fn)~~ is out of scope.
 
 ## Rules for one-shot events
 
@@ -164,7 +164,7 @@ Events of `(axis, delta)`. The axes are X / Y / wheel / horizontal wheel (mouse-
 - The bridge always keeps exactly one internal LockState (all off at startup). It is overwritten by reports from the authority, and **every input adapter is notified** when it changes.
 - How that notification is realized is up to the adapter (an LED report to a USB keyboard, pin outputs to a homemade GPIO keyboard, an output report over BLE).
 - An input that connects later is notified with the state as of that moment (a host only sends a report on change, so holding it internally is mandatory).
-- Active lock synchronization (injecting toggle keys into a host that has drifted) is not performed (noted as future work).
+- ~~Active lock synchronization (injecting toggle keys into a host that has drifted)~~ is out of scope.
 
 ## Keyboard layout conversion
 

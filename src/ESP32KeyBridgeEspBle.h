@@ -1,6 +1,7 @@
 #pragma once
 
 #include <ESP32KeyBridge.h>
+#include <ESP32KeyBridgeBluetooth.h>
 #include <EspBle.h>
 
 #include <string.h>
@@ -185,6 +186,313 @@ private:
   uint8_t lastMouseButtons_ = 0;
   int32_t pendingAxis_[kAxisCount] = {};
   bool ledSeen_ = false;
+};
+
+// Selects which bonded BLE Host may reconnect to the HID peripheral.  EspBle's
+// bundled NimBLE stores at most three bonds, so those bonds are exposed as
+// slots 1..3.  Selecting a populated slot disconnects the current peripheral
+// link and starts directed advertising to that bond.  Pairing removes the bond
+// currently occupying the selected slot, then starts ordinary discoverable
+// advertising so a replacement Host can pair there.
+//
+// Construct this next to EspBleHidOutputAdapter, then wrap the physical keyboard
+// input in BluetoothHotkeyInputAdapter.  This object observes connection events
+// through EspBle's multi-listener API and does not take over the sketch's on*()
+// callbacks.
+class EspBleHidTargetController : public BluetoothTargetController
+{
+public:
+  static constexpr size_t MaxSlots = 3;
+
+  explicit EspBleHidTargetController(EspBle &ble) : ble_(ble)
+  {
+    connectedListener_ = ble_.addConnectedListener(
+        [this](const EspBleConnection &connection) { handleConnected(connection); });
+    disconnectedListener_ = ble_.addDisconnectedListener(
+        [this](const EspBleConnection &connection) { handleDisconnected(connection); });
+    securityListener_ = ble_.addSecurityChangedListener(
+        [this](const EspBleSecurityChanged &event) { handleSecurity(event); });
+  }
+
+  ~EspBleHidTargetController() override
+  {
+    ble_.removeConnectionListener(connectedListener_);
+    ble_.removeConnectionListener(disconnectedListener_);
+    ble_.removeConnectionListener(securityListener_);
+  }
+
+  size_t slotCount() const override { return MaxSlots; }
+  size_t selectedSlot() const override { return selectedSlot_; }
+  BluetoothTargetStatus status() const override { return status_; }
+  uint32_t nowMilliseconds() const override { return millis(); }
+
+  bool selectSlot(size_t slot) override
+  {
+    if (slot == 0 || slot > MaxSlots)
+    {
+      status_ = BluetoothTargetStatus::Failed;
+      return false;
+    }
+
+    loadSlots();
+    if (!slotUsed_[slot - 1])
+    {
+      status_ = BluetoothTargetStatus::Failed;
+      return false;
+    }
+
+    selectedSlot_ = slot;
+    targetBond_ = slots_[slot - 1];
+    status_ = BluetoothTargetStatus::Switching;
+    pending_ = Pending::DirectedAdvertising;
+    ble_.advertising().stop();
+
+    if (peripheralConnectionId_ != 0)
+    {
+      if (peripheralAddress_.equalsIgnoreCase(targetBond_.peerAddress))
+      {
+        pending_ = Pending::None;
+        status_ = BluetoothTargetStatus::Connected;
+        return true;
+      }
+      if (!ble_.disconnect(peripheralConnectionId_))
+      {
+        pending_ = Pending::None;
+        status_ = BluetoothTargetStatus::Failed;
+        return false;
+      }
+      return true;
+    }
+    return startPending();
+  }
+
+  bool pairSlot(size_t slot) override
+  {
+    if (slot == 0 || slot > MaxSlots)
+    {
+      status_ = BluetoothTargetStatus::Failed;
+      return false;
+    }
+
+    loadSlots();
+    selectedSlot_ = slot;
+    status_ = BluetoothTargetStatus::Pairing;
+    pairingConnectionId_ = 0;
+    pending_ = Pending::PairingAdvertising;
+    ble_.advertising().stop();
+    if (peripheralConnectionId_ != 0)
+    {
+      if (!ble_.disconnect(peripheralConnectionId_))
+      {
+        pending_ = Pending::None;
+        status_ = BluetoothTargetStatus::Failed;
+        return false;
+      }
+      return true;
+    }
+    return startPending();
+  }
+
+private:
+  enum class Pending : uint8_t
+  {
+    None = 0,
+    DirectedAdvertising,
+    PairingAdvertising,
+  };
+
+  bool startPending()
+  {
+    const Pending operation = pending_;
+    pending_ = Pending::None;
+    if (operation == Pending::DirectedAdvertising)
+    {
+      if (!ble_.advertising().setDirectedTarget(
+              targetBond_.peerAddress.c_str(), targetBond_.peerAddressType) ||
+          !ble_.advertising().start())
+      {
+        status_ = BluetoothTargetStatus::Failed;
+        return false;
+      }
+      return true;
+    }
+
+    if (operation == Pending::PairingAdvertising)
+    {
+      const size_t index = selectedSlot_ - 1;
+      if (slotUsed_[index] && !ble_.deleteBond(slots_[index]))
+      {
+        status_ = BluetoothTargetStatus::Failed;
+        return false;
+      }
+      slotUsed_[index] = false;
+      ble_.advertising().clearDirectedTarget();
+      if (!ble_.advertising().start())
+      {
+        status_ = BluetoothTargetStatus::Failed;
+        return false;
+      }
+      return true;
+    }
+    return true;
+  }
+
+  void handleConnected(const EspBleConnection &connection)
+  {
+    if (connection.localRole != EspBleRole::Peripheral)
+    {
+      return;
+    }
+    peripheralConnectionId_ = connection.id;
+    peripheralAddress_ = connection.peerAddress;
+    loadSlots();
+    size_t existingSlot = MaxSlots;
+    for (size_t i = 0; i < MaxSlots; ++i)
+    {
+      if (slotUsed_[i] && peripheralAddress_.equalsIgnoreCase(slots_[i].peerAddress))
+      {
+        existingSlot = i;
+        break;
+      }
+    }
+    if (status_ == BluetoothTargetStatus::Pairing && existingSlot < MaxSlots)
+    {
+      // Ordinary advertising is required for a new Host, but an already-bonded
+      // Host from another slot may race to reconnect. Keep pairing the selected
+      // slot instead of silently switching to that existing Host.
+      pending_ = Pending::PairingAdvertising;
+      if (!ble_.disconnect(connection.id))
+      {
+        pending_ = Pending::None;
+        status_ = BluetoothTargetStatus::Failed;
+      }
+      return;
+    }
+    if (existingSlot < MaxSlots && status_ != BluetoothTargetStatus::Pairing)
+    {
+      selectedSlot_ = existingSlot + 1;
+    }
+    else if (status_ == BluetoothTargetStatus::Pairing)
+    {
+      pairingConnectionId_ = connection.id;
+    }
+    if (status_ == BluetoothTargetStatus::Switching &&
+        peripheralAddress_.equalsIgnoreCase(targetBond_.peerAddress))
+    {
+      status_ = BluetoothTargetStatus::Connected;
+    }
+  }
+
+  void handleDisconnected(const EspBleConnection &connection)
+  {
+    if (connection.id != peripheralConnectionId_)
+    {
+      return;
+    }
+    peripheralConnectionId_ = 0;
+    peripheralAddress_ = "";
+    if (pairingConnectionId_ == connection.id)
+    {
+      pairingConnectionId_ = 0;
+    }
+    if (pending_ != Pending::None)
+    {
+      startPending();
+      return;
+    }
+
+    // An ordinary link loss should remain locked to the selected bond instead
+    // of reopening undirected pairing to every nearby host.
+    loadSlots();
+    if (slotUsed_[selectedSlot_ - 1])
+    {
+      targetBond_ = slots_[selectedSlot_ - 1];
+      status_ = BluetoothTargetStatus::Switching;
+      pending_ = Pending::DirectedAdvertising;
+      startPending();
+    }
+    else
+    {
+      ble_.advertising().clearDirectedTarget();
+      ble_.advertising().start();
+    }
+  }
+
+  void handleSecurity(const EspBleSecurityChanged &event)
+  {
+    if (event.connection.localRole != EspBleRole::Peripheral)
+    {
+      return;
+    }
+    if (status_ == BluetoothTargetStatus::Idle && event.success && event.connection.bonded)
+    {
+      // Also adopt a first-time pairing started by the sketch's initial normal
+      // advertising, before a hotkey has ever been used.
+      slotsLoaded_ = false;
+      loadSlots();
+      for (size_t i = 0; i < MaxSlots; ++i)
+      {
+        if (slotUsed_[i] &&
+            event.connection.peerAddress.equalsIgnoreCase(slots_[i].peerAddress))
+        {
+          selectedSlot_ = i + 1;
+          status_ = BluetoothTargetStatus::Connected;
+          break;
+        }
+      }
+      return;
+    }
+    if (status_ != BluetoothTargetStatus::Pairing ||
+        event.connection.id != pairingConnectionId_)
+    {
+      return;
+    }
+    if (event.success && event.connection.bonded)
+    {
+      const size_t index = selectedSlot_ - 1;
+      slots_[index].peerAddress = event.connection.peerAddress;
+      slots_[index].peerAddressType = event.connection.peerAddressType;
+      slotUsed_[index] = true;
+      status_ = BluetoothTargetStatus::Connected;
+    }
+    else
+    {
+      status_ = BluetoothTargetStatus::Failed;
+    }
+  }
+
+  void loadSlots()
+  {
+    if (slotsLoaded_)
+    {
+      return;
+    }
+    slotsLoaded_ = true;
+    for (size_t i = 0; i < MaxSlots; ++i)
+    {
+      slotUsed_[i] = false;
+    }
+    const size_t count = ble_.bondCount() < MaxSlots ? ble_.bondCount() : MaxSlots;
+    for (size_t i = 0; i < count; ++i)
+    {
+      slotUsed_[i] = ble_.bond(i, slots_[i]);
+    }
+  }
+
+  EspBle &ble_;
+  size_t selectedSlot_ = 1;
+  BluetoothTargetStatus status_ = BluetoothTargetStatus::Idle;
+  Pending pending_ = Pending::None;
+  EspBleBond targetBond_;
+  EspBleBond slots_[MaxSlots];
+  bool slotUsed_[MaxSlots] = {};
+  bool slotsLoaded_ = false;
+  EspBleConnectionId peripheralConnectionId_ = 0;
+  EspBleConnectionId pairingConnectionId_ = 0;
+  String peripheralAddress_;
+  EspBleListenerId connectedListener_ = EspBleInvalidListenerId;
+  EspBleListenerId disconnectedListener_ = EspBleInvalidListenerId;
+  EspBleListenerId securityListener_ = EspBleInvalidListenerId;
 };
 
 // ---------------------------------------------------------------------------

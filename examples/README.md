@@ -1,5 +1,7 @@
 # Examples
 
+> Officially supported target: **ESP32-S3 only**. Examples naming other ESP32 variants are retained as historical material and are not supported scope.
+
 [日本語](README.ja.md)
 
 Every example is a **practical** one: a sketch for a real hardware setup, ready to flash as-is. They all share the same structure: 1) start the hardware, 2) wire the bridge, 3) build and apply the configuration.
@@ -21,6 +23,7 @@ Every example is a **practical** one: a sketch for a real hardware setup, ready 
 - `NumPad`: build a numeric keypad, macro pad, or custom keyboard from a GPIO-wired switch matrix. ESP32-S3 + GPIO.
 - `NaturalScroll`: invert the mouse wheel direction without touching the PC's settings (swapping buttons for left-handed use, too). ESP32-P4.
 - `ScrollDial`: a physical scroll dial on your desk (turn to scroll the wheel, press for a middle click; also works as a jog dial). ESP32-S3 + GPIO (rotary encoder).
+- `SettingsPortal`: connect a phone directly to the ESP32-S3 and inspect persisted layout settings in a self-hosted offline page. ESP32-S3 + Wi-Fi SoftAP.
 - `SerialTextTyper`: type text received over serial into the PC (test automation, kiosks). ESP32-S3.
 - `SwapCtrlCapsLock`: sit between a keyboard and a PC and swap CapsLock and Ctrl without changing either. ESP32-P4. **The P4 USB port details live in this example's README.**
 - `TouchButtons`: learn how to write your own input adapter (worked example: the ESP32-S3's built-in capacitive touch pads as buttons). ESP32-S3.

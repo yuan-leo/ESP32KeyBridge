@@ -4,7 +4,9 @@
 
 アダプタの一覧・実装状況・PC からどう見えるか(USB デバイス構成)をまとめます。実装の進行([DEVELOPMENT_PLAN.ja.md](DEVELOPMENT_PLAN.ja.md) 実装順 7)に合わせて更新します。
 
-状況の凡例: **実装済み** / **モック**(スケッチ向け API は確定、ビルドのみ可) / **構想**(ヘッダ未作成)。実装済みには実機での確認状況を併記します — **実機検証済み** は `tests/peer/` の自動テストか実機での確認が通ったもの、**実機検証待ち** はビルドと unit test までのものです。
+> 正式サポートは **ESP32-S3 のみ**です。他の ESP32 variant が必要な adapter code は履歴・legacy 実装として残しますが、support scope 外です。
+
+状況の凡例: **実装済み**。実装済みには実機での確認状況を併記します — **実機検証済み** は `tests/peer/` の自動テストか実機での確認が通ったもの、**実機検証待ち** はビルドと unit test までのものです。未実装の過去案は「予定」ではなく **scope 外** とします。
 
 ## 入力アダプタ
 
@@ -13,17 +15,17 @@
 | `ManualInputAdapter` | `ESP32KeyBridge.h`(core) | なし | **実装済み** | `press()` / `release()` で論理押下を注入。相対値(`addAxisDelta`)、切断模擬、LockState 受信の記録。自作入力の最小リファレンス |
 | `EspUsbHostKeyboardInputAdapter` | `ESP32KeyBridgeEspUsbHost.h` | EspUsbHost 2.3.0+ | **実装済み(実機検証済み: peer `usb_host_keyboard / usb_host_consumer`)** | USB キーボード(スタック上の全キーボードを合算、最大 4 台。consumer キー = メディアキーやリモコンも合算、同時 8 usage)。`onKeyboardState` の 256-bit スナップショット(boot / report-ID boot / NKRO 共通、修飾キー単独変化含む)を KeySet に写像。boot のロールオーバーエラーコード(usage 0x01〜0x03)は除外。LockState を全キーボードの LED へ転送(num/caps/scroll。kana は EspUsbHost に転送手段なし。EspUsbHost 2.3.0 で report-ID/NKRO 専用キーボードへも LED を送れる = boot 宣言キーボードにしか送れなかった 2.2.0 の制限は解消)。presence は最初の report から、切断でそのデバイスのキーだけ解放 |
 | `EspUsbHostMouseInputAdapter` | `ESP32KeyBridgeEspUsbHost.h` | EspUsbHost | **実装済み(実機検証済み: peer `usb_host_mouse`)** | USB マウス(スタック上の全マウスを合算、最大 4 台)。ボタン = MouseButton キー(union)、移動・ホイール・AC Pan(横ホイール/チルト。boot mouse report には無いので 0)= 相対軸(合算)。presence は最初の report から(列挙照会 API が無いため)、切断でそのマウスのボタンだけ解放 |
-| `EspUsbHostGamepadInputAdapter` | `ESP32KeyBridgeEspUsbHost.h` | EspUsbHost 2.3.0+ | **実装済み(実機検証済み: peer `usb_host_gamepad`)** | USB ゲームパッド(入力専用)。`mapButton(番号, key)` で HID ボタン(1 始まり)を任意の Key に、`mapHat(up,down,left,right)` で十字/ハット(8 方向、斜めは 2 キー)を写像。登録したコントロールだけ出力。全パッド合算(最大 4 台)、切断でそのパッドだけ解放。アナログスティック/トリガは未対応(現状) |
+| `EspUsbHostGamepadInputAdapter` | `ESP32KeyBridgeEspUsbHost.h` | EspUsbHost 2.3.0+ | **実装済み(実機検証済み: peer `usb_host_gamepad`)** | USB ゲームパッド(入力専用)。`mapButton(番号, key)` で HID ボタン(1 始まり)を任意の Key に、`mapHat(up,down,left,right)` で十字/ハット(8 方向、斜めは 2 キー)を写像。登録したコントロールだけ出力。全パッド合算(最大 4 台)、切断でそのパッドだけ解放。アナログスティック/トリガは scope 外 |
 | `EspUsbHostMidiInputAdapter` | `ESP32KeyBridgeEspUsbHost.h` | EspUsbHost 2.3.0+ | **実装済み(実機検証済み: peer `usb_host_midi`)** | USB MIDI(入力専用)。`mapNote(ノート, key)` で MIDI ノート(0-127)を任意の Key に写像(Note On=押下 / Note Off・vel0=解放)。`setChannel(ch)` で 1 ch に限定(既定 全 ch)。Note On/Off のみ使用(CC・ピッチベンド等は無視)。登録したノートだけ出力、全 MIDI デバイス切断で残ノートをクリア |
 | `GpioKeyInputAdapter` | `ESP32KeyBridgeGpio.h` | Arduino GPIO のみ | **実装済み(実機検証待ち)** | `addKey(pin, key, activeLow, pullUp)` で最大 `SOC_GPIO_PIN_COUNT` キー。デバウンス内蔵(既定 5ms、`setDebounceMillis()` で調整)。ピン設定は登録後最初の `update()`。loop レート(≈1kHz)のポーリングで足りる |
-| `EspBleHidHostKeyboardInputAdapter` | `ESP32KeyBridgeEspBle.h` | EspBle 1.2.0+ | **実装済み(実機検証済み: peer `ble_hid_keyboard`)** | BLE キーボード(HID over GATT central。接続中の全キーボードを合算、最大 4 接続。consumer キーも合算、1 接続あたり 1 usage = HOGP の consumer report が同時に 1 usage しか運ばないため)。`onKeyboardState` の 256-bit スナップショット(boot / report / NKRO 共通、修飾キー単独変化含む)を KeySet に写像 = USB Host 側と同じ経路。LockState を全キーボードの LED へ転送(**kana も転送可能** = USB Host 側にはない)。presence は最初の report から、切断でその接続のキーだけ解放。**consumer の解放イベントは EspUsbHost と意味が違う**(EspUsbHost は「離された usage」を報告するが、EspBle は「その接続の新しい usage」= 解放時は 0 を報告する)ので、アダプタは usage の一致を探すのではなく接続ごとのエントリを置き換える |
-| `EspBleHidHostMouseInputAdapter` | `ESP32KeyBridgeEspBle.h` | EspBle 1.2.0+ | **実装済み(実機検証済み: peer `ble_hid_keyboard`)** | BLE マウス(接続中の全マウスを合算、最大 4 接続)。ボタン = MouseButton キー(union)、移動・ホイール = 相対軸(合算)。HOGP のマウス report に AC Pan は無し |
-| `EspBleHidHostGamepadInputAdapter` | `ESP32KeyBridgeEspBle.h` | EspBle 1.2.0+ | **実装済み(実機検証済み: peer `ble_hid_gamepad`)** | BLE ゲームパッド。`mapButton()` / `mapHat()` の写像とハットのデコードは core の `GamepadKeyMap` を共有するので USB Host 側と完全に同じ挙動。全パッド合算(最大 4 接続)、切断でそのパッドだけ解放 |
+| `EspBleHidHostKeyboardInputAdapter` | `ESP32KeyBridgeEspBle.h` | EspBle 1.3.0+ | **実装済み(実機検証済み: peer `ble_hid_keyboard`)** | BLE キーボード(HID over GATT central。接続中の全キーボードを合算、最大 4 接続。consumer キーも合算、1 接続あたり 1 usage = HOGP の consumer report が同時に 1 usage しか運ばないため)。`onKeyboardState` の 256-bit スナップショット(boot / report / NKRO 共通、修飾キー単独変化含む)を KeySet に写像 = USB Host 側と同じ経路。LockState を全キーボードの LED へ転送(**kana も転送可能** = USB Host 側にはない)。presence は最初の report から、切断でその接続のキーだけ解放。**consumer の解放イベントは EspUsbHost と意味が違う**(EspUsbHost は「離された usage」を報告するが、EspBle は「その接続の新しい usage」= 解放時は 0 を報告する)ので、アダプタは usage の一致を探すのではなく接続ごとのエントリを置き換える |
+| `EspBleHidHostMouseInputAdapter` | `ESP32KeyBridgeEspBle.h` | EspBle 1.3.0+ | **実装済み(実機検証済み: peer `ble_hid_keyboard`)** | BLE マウス(接続中の全マウスを合算、最大 4 接続)。ボタン = MouseButton キー(union)、移動・ホイール = 相対軸(合算)。HOGP のマウス report に AC Pan は無し |
+| `EspBleHidHostGamepadInputAdapter` | `ESP32KeyBridgeEspBle.h` | EspBle 1.3.0+ | **実装済み(実機検証済み: peer `ble_hid_gamepad`)** | BLE ゲームパッド。`mapButton()` / `mapHat()` の写像とハットのデコードは core の `GamepadKeyMap` を共有するので USB Host 側と完全に同じ挙動。全パッド合算(最大 4 接続)、切断でそのパッドだけ解放 |
 | `EspBleClassicHidHostKeyboardInputAdapter` | `ESP32KeyBridgeEspBleClassic.h` | EspBle 1.3.0+ | **実装済み(実機検証済み: peer `classic_hid_keyboard`)** | Bluetooth Classic HID Host キーボード(**無印 ESP32 のみ、1 接続**)。EspBleClassic が Report Descriptor から復号した 256-bit usage + modifier snapshot を KeySet に写像し、lock LED を相手へ返す。Classic Host は consumer report を標準復号しないためメディアキー入力は対象外。接続は sketch が address を指定して行う |
 | `EspBleClassicHidHostMouseInputAdapter` | `ESP32KeyBridgeEspBleClassic.h` | EspBle 1.3.0+ | **実装済み(実機検証済み: peer `classic_hid_keyboard`)** | Bluetooth Classic HID Host マウス(**無印 ESP32 のみ、1 接続**)。復号済みのボタン・X/Y・wheel を入力へ写像。AC Pan は無し |
 | `GpioMatrixInputAdapter` | `ESP32KeyBridgeGpio.h` | Arduino GPIO のみ | **実装済み(実機検証済み)** | キーマトリクス(最大 16 行 × 16 列。スキャン・デバウンス・ゴースト判定は専用タスク 1kHz = loop がブロックしても取りこぼさない。初回 `update()` で起動、非アクティブ行は high-Z)。配線は `setRowPins()` / `setColPins()`(行 = スキャン出力、列 = プルアップ入力)、キーマップは `setKeys()` に行優先の並びで渡す(見た目 = 物理配置、座標番号なし。歯抜けは無効キー `Key()`)。ダイオード任意(無しはゴーストブロック = 確実な同時押し 2 キーまで。`setHasDiodes(true)` で無制限)。デバウンス内蔵 |
 | `RotaryEncoderInputAdapter` | `ESP32KeyBridgeGpio.h` | PCNT(ESP-IDF 内蔵。`SOC_PCNT_SUPPORTED` のチップのみ) | **実装済み(実機検証待ち)** | ロータリーエンコーダ(PCNT ×4 直交デコード + グリッチフィルタ、割り込みなし、1 アダプタ 1 エンコーダ = チップの PCNT ユニット数まで)。1 ノッチ → キータップ(`mapToKeys(cw, ccw)`)または相対軸 ±1(`mapToAxis(axis)`)。`setPulsesPerDetent()`(既定 4 = EC11)。押し込みスイッチは GpioKeyInputAdapter で |
-| IR / I2C・SPI エキスパンダ | - | - | **構想** | [DEVELOPMENT_PLAN.ja.md](DEVELOPMENT_PLAN.ja.md) の対応予定 |
+| ~~IR / I2C・SPI エキスパンダ~~ | - | - | **scope 外** | リポジトリ由来の案であり、合意済み機能ではない |
 
 補足: 文字列入力(シリアル指令、シリアル型バーコードリーダー)はアダプタではなく、ブリッジの一級入力 `typeText()` / `typeChar()` を使います(example: SerialTextTyper)。
 
@@ -35,7 +37,7 @@
 | `EspUsbDeviceHidOutputAdapter` | `ESP32KeyBridgeEspUsbDevice.h` | EspUsbDevice | **実装済み(実機検証済み: peer `usb_device_keyboard_output`)** | あり | 複合 HID デバイス(keyboard + consumer + mouse)。keyboard = boot 6KRO、consumer = 16bit usage × 1、相対軸 → mouse report(int8 飽和 + 繰り越し、Pan は非対応で破棄)。各 report は変化時のみ送信 + busy 時は次 update で再送。LED output report 受信 = lock 正本になれる(kana 含む)。`connected()` = ホストに mount 中 |
 | `TextOutputAdapter` | `ESP32KeyBridgeSerial.h` | なし(Arduino `Print` のみ) | **実装済み(実機検証待ち)** | なし | 文字対応出力。文字ストリーム(`writeText()`)だけを消費して `Print`(Serial / Serial1 / SoftwareSerial 等)へ UTF-8 で出す。文字源は `typeText()` 由来と、`convertLayout()` を設定した入力の押下由来(刻印デコード。Enter→改行 / Tab→タブは core が付与)。**出力側にレイアウトは持たない**(HID バーコード → 文字は入力側 convertLayout で決まる) |
 | `LogOutputAdapter` | `ESP32KeyBridgeSerial.h` | なし(Arduino `Print` のみ) | **実装済み(実機検証待ち)** | なし | デバッグ監視。押下集合の変化(`KEYS ...`)・タイプ文字(`TEXT ...`)・相対軸(`AXIS ...`)を人間可読で `Print` へ。実出力と併設 or 単独でブリングアップ |
-| `EspBleHidOutputAdapter` | `ESP32KeyBridgeEspBle.h` | EspBle 1.2.0+ | **実装済み(実機検証済み: peer `ble_hid_output`)** | あり | BLE HID peripheral(HID over GATT)。複合 HID(keyboard + consumer + mouse)で、report の形式は USB Device 出力と同一(keyboard = boot 6KRO、consumer = 16bit usage × 1、mouse = ボタン 8 + X/Y/Wheel。Pan は非対応で破棄)。各 report は変化時のみ送信 + 送れなかったときは次 update で再送。LED output report 受信 = lock 正本になれる(kana 含む)。`connected()` = ホストが接続・暗号化済みで input report を subscribe 中 |
+| `EspBleHidOutputAdapter` | `ESP32KeyBridgeEspBle.h` | EspBle 1.3.0+ | **実装済み(実機検証済み: peer `ble_hid_output`)** | あり | BLE HID peripheral(HID over GATT)。複合 HID(keyboard + consumer + mouse)で、report の形式は USB Device 出力と同一(keyboard = boot 6KRO、consumer = 16bit usage × 1、mouse = ボタン 8 + X/Y/Wheel。Pan は非対応で破棄)。各 report は変化時のみ送信 + 送れなかったときは次 update で再送。LED output report 受信 = lock 正本になれる(kana 含む)。`connected()` = ホストが接続・暗号化済みで input report を subscribe 中 |
 | `EspBleClassicHidOutputAdapter` | `ESP32KeyBridgeEspBleClassic.h` | EspBle 1.3.0+ | **実装済み(実機検証済み: peer `classic_hid_output`)** | あり | Bluetooth Classic HID Device(**無印 ESP32 のみ**)。BLE 出力と同じ keyboard 6KRO + consumer + mouse report。Classic 固有の SDP record 上限(Report Descriptor + identity 文字列で 214 byte)内に 3 profile を合成し、超過時は `bluetooth.begin()` が失敗。接続済み HID Host は 1 台 |
 
 ## PC からどう見えるか(USB デバイス構成)
@@ -48,11 +50,11 @@ USB Device 出力は 1 種類で、常に**複合 HID デバイス**として PC
 
 規則:
 
-- **常に全部入りで見せる**方針です。使わない interface は report を送らないだけで USB 的に無害なので、キーボード単体版は用意しません(古い BIOS 向けの最小構成が必要なら実キーボードを直結すればよい、という割り切り)。keyboard interface は boot protocol 対応なので BIOS/UEFI でも動作します。将来 interface の無効化オプションが要る場合はコンストラクタ引数(既定値付き)で非破壊に追加できます。
+- **常に全部入りで見せる**方針です。使わない interface は report を送らないだけで USB 的に無害なので、キーボード単体版は用意しません(古い BIOS 向けの最小構成が必要なら実キーボードを直結すればよい、という割り切り)。keyboard interface は boot protocol 対応なので BIOS/UEFI でも動作します。~~interface 無効化オプション~~は scope 外です。
 - **interface 構成は `usbDevice.begin()` 時に確定**し、以後変更できません(追加・削除には再 enumerate = 抜き挿し相当が必要)。設定にマウスやメディアキーを後から足しても、descriptor は最初から揃っているので再列挙は起きません。
 - VID / PID / 製品名などのデバイス素性は `EspUsbDeviceConfig` で(スタックはスケッチ所有)。
 - **LED output report を受信**し、接続中は lock 状態の正本(の連鎖の候補)になります([DATA_MODEL.ja.md](DATA_MODEL.ja.md) の Lock 状態)。
-- rollover(32 キー)report builder は core にありますが、v1 の USB Device 出力は boot keyboard を基本とします(NKRO descriptor は将来のアダプタ拡張)。
+- rollover(32 キー)report builder は core にありますが、USB Device 出力は boot keyboard を基本とします。~~NKRO descriptor の追加~~は scope 外です。
 
 ### BLE HID 出力から見た構成
 
@@ -60,6 +62,12 @@ USB Device 出力は 1 種類で、常に**複合 HID デバイス**として PC
 
 - HID service の構成は `ble.begin()` で確定します(USB の `usbDevice.begin()` に対応)。したがって出力アダプタは `ble.begin()` より先に構築します。
 - `connected()` は「mount 済み」ではなく「接続 + 暗号化済み + input report を subscribe 済み」です。HOGP ではホストが subscribe するまで notification を出せないためで、ペアリング直後の一瞬は false になります。
+
+`BluetoothHotkeyInputAdapter` は任意の keyboard 入力を包み、
+`EspBleHidTargetController` を駆動できます。Scroll Lock + 上段 1..3 で EspBle の
+3 個の bond slot を選び、Scroll Lock + 0 で選択中 slot を pairing mode から入れ替えます。
+controller は directed advertising で再接続し、wrapper は制御 chord を消費して physical keyboard の
+Scroll Lock LED だけを点滅させた後、本来の lock 状態を復元します。
 
 ### Bluetooth Classic HID 出力から見た構成
 

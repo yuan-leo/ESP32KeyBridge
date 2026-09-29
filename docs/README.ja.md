@@ -8,13 +8,14 @@
 
 | やりたいこと | 読む文書 |
 | --- | --- |
+| 明示的に合意した追加機能と未実装項目を知る | [SCOPE.md](SCOPE.md) |
 | ライブラリが何をするものか知り、動くスケッチを見る | [../README.ja.md](../README.ja.md) |
 | **初めて使う。何が起きているのかを理解する** | [GUIDE_BASICS.ja.md](GUIDE_BASICS.ja.md) — 入門ガイド。キーモデル・変換・各インタフェースの特徴と制約 |
 | 自分のハードウェア向けのスケッチを探す | [../examples/README.ja.md](../examples/README.ja.md) — すべてそのまま書き込める完結したスケッチ |
 | 使うアダプタを選び、できること・できないことを知る | [ADAPTERS.ja.md](ADAPTERS.ja.md) |
 | キーモデルがなぜこの形なのかを知る | [DATA_MODEL.ja.md](DATA_MODEL.ja.md) |
 | 自作アダプタを書く | `src/ESP32KeyBridge.h` の `InputAdapter` / `OutputAdapter` のコメント → `TouchButtons` example → [CORE_DESIGN.ja.md](CORE_DESIGN.ja.md) |
-| 現在地と残作業を知る | [DEVELOPMENT_PLAN.ja.md](DEVELOPMENT_PLAN.ja.md) と [ADAPTERS.ja.md](ADAPTERS.ja.md) の状況列 |
+| 実装履歴と閉じた scope を知る | [DEVELOPMENT_PLAN.ja.md](DEVELOPMENT_PLAN.ja.md) と [ADAPTERS.ja.md](ADAPTERS.ja.md) の状況列 |
 | なぜそう設計したのかを知る | [DECISIONS.ja.md](DECISIONS.ja.md) |
 
 ## 文書一覧
@@ -36,7 +37,7 @@
 
 **プロセス**
 
-- [DEVELOPMENT_PLAN.ja.md](DEVELOPMENT_PLAN.ja.md) — 実装順、現在地、残作業。
+- [DEVELOPMENT_PLAN.ja.md](DEVELOPMENT_PLAN.ja.md) — 実装順、完了状態、閉じた scope。
 - [RELEASE_CHECKLIST.ja.md](RELEASE_CHECKLIST.ja.md) / [RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md) — リリース前の確認項目と、共通リリース workflow の動き。
 - [../tests/README.ja.md](../tests/README.ja.md) — テスト構成(`unit/`、`examples_compile/`、`single/`、`peer/`、`manual/`)と実行方法。
 - [../tests/TEST_PLAN.ja.md](../tests/TEST_PLAN.ja.md) — カバレッジ表。何をどこで確認していて、何が未着手か。
@@ -44,6 +45,6 @@
 ## 記述の約束
 
 - 文書中のコード例では namespace(`esp32keybridge::`)を省略しない(`using` に頼らない)。
-- 文書は**実装済みのこと**を書く。未実装は現在形で書かず「予定」と明示する。
+- 文書は**実装済みのこと**を書く。未実装の過去案は「予定」ではなく **scope 外** と明示し、新しい scope を作らない。
 - `ADAPTERS.ja.md` は「実装済み(実機検証待ち)」と「実装済み(実機検証済み)」を区別する。リリース可否の判断で状況列をそのまま信用できるようにするため。
 - 日英併記の文書は**同じ commit で両方を更新する**。食い違ったときは日本語版が正本。

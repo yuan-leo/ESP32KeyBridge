@@ -489,7 +489,7 @@ gamepad.mapHat(esp32keybridge::KeyboardUsage::Up,
                esp32keybridge::KeyboardUsage::Right);  // 斜めは 2 キー同時
 ```
 
-**アナログスティックとトリガは現バージョンでは未対応**です。ボタンとハットだけが写像できます。
+対応範囲はボタンとハットです。~~アナログスティックとトリガ~~は scope 外です。
 
 **MIDI** は Note On(velocity > 0)で押下、Note Off(または velocity 0 の Note On)で解放です。既定では全チャンネルを聞き、`setChannel(ch)` で 1 ch に絞れます。**Control Change やピッチベンドは無視**されます。
 
@@ -641,11 +641,11 @@ private:
 |---|---|---|---|---|
 | `EspUsbHostKeyboardInputAdapter` | EspUsbHost | 4 | しない | メディアキー同時 8。kana LED は送れない |
 | `EspUsbHostMouseInputAdapter` | EspUsbHost | 4 | しない | presence は最初の report から |
-| `EspUsbHostGamepadInputAdapter` | EspUsbHost | 4 | しない | アナログ軸は未対応 |
+| `EspUsbHostGamepadInputAdapter` | EspUsbHost | 4 | しない | アナログ軸は scope 外 |
 | `EspUsbHostMidiInputAdapter` | EspUsbHost | 4 | しない | Note On/Off のみ |
 | `EspBleHidHostKeyboardInputAdapter` | EspBle | 4 接続 | しない* | メディアキーは 1 接続 1 usage。暗号化が事実上必須 |
 | `EspBleHidHostMouseInputAdapter` | EspBle | 4 接続 | しない* | 横ホイールなし |
-| `EspBleHidHostGamepadInputAdapter` | EspBle | 4 接続 | しない* | アナログ軸は未対応 |
+| `EspBleHidHostGamepadInputAdapter` | EspBle | 4 接続 | しない* | アナログ軸は scope 外 |
 | `EspBleClassicHidHostKeyboardInputAdapter` | EspBle 1.3.0 | 1 接続 | しない** | 無印 ESP32 のみ。consumer 入力は未復号 |
 | `EspBleClassicHidHostMouseInputAdapter` | EspBle 1.3.0 | 1 接続 | しない** | 無印 ESP32 のみ。横ホイールなし |
 | `GpioKeyInputAdapter` | なし | ピン数まで | ⚠ **する** | 押下の長い入力専用 |
@@ -685,7 +685,7 @@ PC からは**常に複合 HID デバイス(keyboard + consumer + mouse)**とし
 
 ### 6.2 BLE HID 出力
 
-ヘッダ: `ESP32KeyBridgeEspBle.h` / 依存: EspBle 1.2.0 以上
+ヘッダ: `ESP32KeyBridgeEspBle.h` / 依存: EspBle 1.3.0 以上
 
 考え方は USB Device 出力と同じで、keyboard + consumer + mouse を 1 つの HID service に載せます。**report の中身は USB Device 出力と同一**なので、出力を差し替えても、両方同時に登録しても、キーの見え方は変わりません。
 
@@ -704,7 +704,30 @@ ble.onDisconnected([](const EspBleConnection &) { ble.advertising().start(); });
 
 こちらも LED output report を受け取るので、lock の正本になれます(かな含む)。
 
-#### 6.2.1 Bluetooth Classic HID 出力
+#### 6.2.1 キーボードから bond 済み BLE 接続先を切り替える
+
+physical keyboard 入力を `BluetoothHotkeyInputAdapter` で包み、BLE 出力と並べて
+`EspBleHidTargetController` を置きます。
+
+```cpp
+EspUsbHostKeyboardInputAdapter rawKeyboard(usbHost);
+EspBleHidTargetController targets(ble);
+BluetoothHotkeyInputAdapter keyboard(rawKeyboard, targets);
+EspBleHidOutputAdapter output(ble);
+
+bridge.addInput(keyboard);
+bridge.addOutput(output);
+```
+
+Scroll Lock を押しながら上段 `1`、`2`、`3` を押すと、その bond slot へ再接続します。
+Scroll Lock + `0` は選択中 slot の bond を削除・入れ替えて通常の pairing advertising を始めます。
+それ以外の Scroll Lock chord は素通しし、Scroll Lock 単独 tap も通常の tap として出力します。
+状態表示では Scroll Lock LED だけを一時的に上書きし、Caps / Num / Kana と本来の Scroll Lock
+状態を保存して終了後に復元します。切断・再接続時の advertising は
+`EspBleHidTargetController` が所有するため、無条件に advertising を始める
+`onDisconnected(... advertising().start())` callback は併用しません。
+
+#### 6.2.2 Bluetooth Classic HID 出力
 
 ヘッダ: `ESP32KeyBridgeEspBleClassic.h` / 依存: EspBle 1.3.0 以上 / **無印 ESP32 のみ**
 
@@ -753,25 +776,20 @@ Classic HID Host は 1 台で、BLE の advertising / GATT subscription はあ�
 
 ## 7. チップとポートの選び方
 
-何を橋渡しできるかは、**そのチップで動くアダプタ**で決まります。
+正式にサポートする target は **ESP32-S3 のみ**です。
 
-| | ESP32 | S2 | S3 | C3 / C6 / H2 | P4 |
-|---|---|---|---|---|---|
-| GPIO キー / マトリクス | ✅ | ✅ | ✅ | ✅ | ✅ |
-| ロータリーエンコーダ(PCNT) | ✅ | ✅ | ✅ | ✅ | ✅ |
-| USB Host 入力 | — | ✅ | ✅ | — | ✅ |
-| USB Device 出力 | — | ✅ | ✅ | — | ✅ |
-| BLE HID 入出力 | ✅ | — | ✅ | ✅ | ESP-Hosted 経由 |
-| Bluetooth Classic HID 入出力 | ✅ | — | — | — | — |
+| 機能 | ESP32-S3 |
+|---|---|
+| GPIO キー / マトリクス | ✅ |
+| ロータリーエンコーダ(PCNT) | ✅ |
+| USB Host 入力 | ✅ |
+| USB Device 出力 | ✅ |
+| BLE HID 入出力 | ✅ |
+| Bluetooth Classic HID | — |
 
-ここで一番引っかかるのが **USB の役割数**です。
-
-- **USB → USB**(USB キーボード入力 → USB HID 出力)は USB を**2 役同時**に使うので、**ESP32-P4 が必要**です
-- **片側が BLE なら USB は 1 役**で済むので、USB が 1 つの **ESP32-S3** で動きます。`UsbKeyboardToBle`(有線キーボードを無線化)と `BleKeyboardToUsb`(Bluetooth キーボードを BIOS で使う)がこれです
+S3 の native USB controller は 1 つです。`UsbKeyboardToBle` または `BleKeyboardToUsb` のように USB を一方の役割で使い、反対側を BLE にします。USB-to-USB bridge と他の ESP32 variant は support scope 外です。
 
 USB Host 側にはもう 1 つ電源の話があります。**キーボードへバス電源を供給できる基板**(USB-A のホストコネクタを持つもの、または USB-OTG ケーブル + 外部 5V)が必要です。
-
-P4 の USB ポート事情の詳細は [SwapCtrlCapsLock の README](../examples/practical/SwapCtrlCapsLock/) が基準です。
 
 依存ライブラリは**include したアダプタの分だけ**増えます。core ヘッダ (`ESP32KeyBridge.h`) の依存はゼロです。
 
@@ -780,7 +798,7 @@ P4 の USB ポート事情の詳細は [SwapCtrlCapsLock の README](../examples
 | `ESP32KeyBridge.h` | なし |
 | `ESP32KeyBridgeEspUsbHost.h` | EspUsbHost 2.6.0 以上 |
 | `ESP32KeyBridgeEspUsbDevice.h` | EspUsbDevice 2.0.0 以上 |
-| `ESP32KeyBridgeEspBle.h` | EspBle 1.2.0 以上 |
+| `ESP32KeyBridgeEspBle.h` | EspBle 1.3.0 以上 |
 | `ESP32KeyBridgeEspBleClassic.h` | EspBle 1.3.0 以上(無印 ESP32 + arduino-esp32 3.2.0 以上) |
 | `ESP32KeyBridgeGpio.h` | なし |
 | `ESP32KeyBridgeSerial.h` | なし |
@@ -833,12 +851,12 @@ bridge.lockAuthorityPresent();   // 外部の lock 正本がいるか
 | 4 | **ホストの見えない状態がある** | IME のオン/オフやフォーカス中のアプリは観測不能。文字系機能は IME オフが前提 |
 | 5 | **物理 Fn キーは扱えない** | キーボード内部で処理され HID に現れない。代替は 3.2 節のレイヤー |
 
-実装上の未対応(将来足せるもの)は別で、次のとおりです。
+次のリポジトリ由来の案は、合意済み scope に含まれません。
 
-- ゲームパッドの**アナログスティック・トリガ**(ボタンとハットのみ)
-- **tap/hold**(時間依存のため v1 対象外)
-- USB Device 出力の **NKRO**(report builder は core にあるが、v1 の出力は boot 6KRO)
-- **マウスの横ホイール(Pan)の出力**(入力では USB Host が拾える)
+- ~~ゲームパッドのアナログスティック・トリガ~~(対応範囲はボタンとハット)
+- ~~tap/hold~~
+- ~~USB Device 出力の NKRO~~(対応範囲は boot 6KRO)
+- ~~マウスの横ホイール(Pan)の出力~~
 
 ---
 

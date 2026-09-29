@@ -683,7 +683,7 @@ Each report is sent only when it changes, and a report that could not be sent be
 
 ### 6.2 BLE HID output
 
-Header: `ESP32KeyBridgeEspBle.h` / requires EspBle 1.2.0 or newer
+Header: `ESP32KeyBridgeEspBle.h` / requires EspBle 1.3.0 or newer
 
 Same idea as the USB Device output: keyboard + consumer + mouse in one HID service. **The report contents are identical to the USB Device output**, so swapping outputs — or registering both at once — does not change how keys look.
 
@@ -702,7 +702,31 @@ ble.onDisconnected([](const EspBleConnection &) { ble.advertising().start(); });
 
 This output also receives LED output reports, so it too can be the lock authority (kana included).
 
-#### 6.2.1 Bluetooth Classic HID output
+#### 6.2.1 Switching bonded BLE targets from the keyboard
+
+Wrap the physical keyboard input with `BluetoothHotkeyInputAdapter` and place an
+`EspBleHidTargetController` next to the BLE output:
+
+```cpp
+EspUsbHostKeyboardInputAdapter rawKeyboard(usbHost);
+EspBleHidTargetController targets(ble);
+BluetoothHotkeyInputAdapter keyboard(rawKeyboard, targets);
+EspBleHidOutputAdapter output(ble);
+
+bridge.addInput(keyboard);
+bridge.addOutput(output);
+```
+
+Hold Scroll Lock and press top-row `1`, `2`, or `3` to reconnect to that bond
+slot. Scroll Lock + `0` deletes/replaces the selected slot and starts ordinary
+pairing advertising. Other Scroll Lock chords pass through, and tapping Scroll
+Lock alone still produces a normal tap. The wrapper temporarily overrides only
+the Scroll Lock LED for status; it preserves Caps/Num/Kana and restores the
+effective Scroll Lock value afterwards. `EspBleHidTargetController` owns
+disconnect/reconnect advertising, so do not also install an unconditional
+`onDisconnected(... advertising().start())` callback.
+
+#### 6.2.2 Bluetooth Classic HID output
 
 Header: `ESP32KeyBridgeEspBleClassic.h` / requires EspBle 1.3.0+ / **original ESP32 only**
 
@@ -751,25 +775,20 @@ Outputs are **state-snapshot based**, so a late `update()` only means the last s
 
 ## 7. Choosing a chip and a port
 
-What you can bridge is decided by **which adapters run on that chip**.
+The only supported target is **ESP32-S3**.
 
-| | ESP32 | S2 | S3 | C3 / C6 / H2 | P4 |
-|---|---|---|---|---|---|
-| GPIO keys / matrix | yes | yes | yes | yes | yes |
-| Rotary encoder (PCNT) | yes | yes | yes | yes | yes |
-| USB Host input | — | yes | yes | — | yes |
-| USB Device output | — | yes | yes | — | yes |
-| BLE HID in/out | yes | — | yes | yes | via ESP-Hosted |
-| Bluetooth Classic HID in/out | yes | — | — | — | — |
+| Capability | ESP32-S3 |
+|---|---|
+| GPIO keys / matrix | yes |
+| Rotary encoder (PCNT) | yes |
+| USB Host input | yes |
+| USB Device output | yes |
+| BLE HID input/output | yes |
+| Bluetooth Classic HID | — |
 
-The thing that trips people up here is **how many USB roles you need**.
-
-- **USB to USB** (USB keyboard in, USB HID out) uses **two USB roles at once**, so it **needs an ESP32-P4**
-- **With BLE on one side, USB is only one role**, so a single-USB chip like the **ESP32-S3** suffices. That covers `UsbKeyboardToBle` (make a wired keyboard wireless) and `BleKeyboardToUsb` (use a Bluetooth keyboard on a BIOS screen)
+The S3 has one native USB controller. Use USB in one role and BLE on the other side, as in `UsbKeyboardToBle` or `BleKeyboardToUsb`. USB-to-USB bridging and other ESP32 variants are outside supported scope.
 
 There is a power consideration on the USB Host side too: the board must be able to **supply bus power to the keyboard** — one with a USB-A host connector, or a USB-OTG cable plus external 5 V.
-
-The details of the P4's USB ports are in the [SwapCtrlCapsLock README](../examples/practical/SwapCtrlCapsLock/), which is the reference for that topic.
 
 Dependencies grow **only with the adapters you include**. The core header (`ESP32KeyBridge.h`) has none.
 
@@ -778,7 +797,7 @@ Dependencies grow **only with the adapters you include**. The core header (`ESP3
 | `ESP32KeyBridge.h` | nothing |
 | `ESP32KeyBridgeEspUsbHost.h` | EspUsbHost 2.6.0+ |
 | `ESP32KeyBridgeEspUsbDevice.h` | EspUsbDevice 2.0.0+ |
-| `ESP32KeyBridgeEspBle.h` | EspBle 1.2.0+ |
+| `ESP32KeyBridgeEspBle.h` | EspBle 1.3.0+ |
 | `ESP32KeyBridgeEspBleClassic.h` | EspBle 1.3.0+ (original ESP32 and arduino-esp32 3.2.0+) |
 | `ESP32KeyBridgeGpio.h` | nothing |
 | `ESP32KeyBridgeSerial.h` | nothing |
@@ -831,12 +850,12 @@ Things the specification cannot solve. Mitigations are noted where they exist.
 | 4 | **Parts of the host's state are invisible** | IME on/off and the focused application cannot be observed. Text features assume the IME is off |
 | 5 | **A physical Fn key cannot be handled** | It is processed inside the keyboard and never reaches HID. The substitute is the layer in 3.2 |
 
-Separately, these are implementation gaps that could be filled later:
+The following repository-originated ideas are not part of the agreed scope:
 
-- Gamepad **analog sticks and triggers** (buttons and hat only)
-- **Tap/hold** (time-dependent; out of scope for v1)
-- **NKRO on the USB Device output** (the report builder is in the core, but the v1 output is boot 6KRO)
-- **Horizontal wheel (Pan) on outputs** (USB Host input can receive it)
+- ~~Gamepad analog sticks and triggers~~ (buttons and hat are supported)
+- ~~Tap/hold~~
+- ~~NKRO on the USB Device output~~ (the supported output is boot 6KRO)
+- ~~Horizontal wheel (Pan) on outputs~~
 
 ---
 

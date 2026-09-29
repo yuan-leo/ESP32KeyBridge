@@ -1,4 +1,17 @@
-# 設定と WebSerial
+# 設定と WebSerial(取り下げ済み・scope 外)
+
+> この文書の WebSerial / CDC / CLI / 永続化リファレンス案は、ChatGPT 上で合意された scope ではありません。履歴としてコメント内に残しますが、実装予定ではありません。
+
+## 新たに合意された後続 scope
+
+locally hosted web interface から次を設定できるようにします。
+
+- keyboard layout 切替
+- macro
+
+これは [SCOPE.md](SCOPE.md) に記録された後続 milestone です。過去の WebSerial / CDC 案を復活させるものではなく、hosting・transport・schema・永続化・認証の方式はまだ scope に追加されていません。
+
+<!-- OUT OF SCOPE HISTORICAL NOTES
 
 `ESP32KeyBridge` core は、キーマップやレイヤーを C++ コードで決め打ちする使い方と、外部から読み込んだ設定を適用する使い方の両方を許容します。
 
@@ -92,3 +105,4 @@ JSON を使う場合でも、転送単位、サイズ制限、部分更新、検
 - 大容量またはユーザー交換前提: SD card
 
 保存形式は core では固定しません。リファレンス実装では、バージョン管理、互換性確認、破損検出、容量制限への対応を優先します。WebSerial UI 側で編集しやすい形式と、デバイス内部で扱いやすい形式を分ける可能性があります。
+-->

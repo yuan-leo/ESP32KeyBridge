@@ -50,7 +50,7 @@ Time, interrupts, and tasks are **confined inside adapters**, keeping the core a
   - EspBle: the stack task only queues events, and user callbacks are dispatched from the context that called `EspBle::update()`. So no synchronization is needed inside the adapter — instead, it is a precondition that **the sketch calls `ble.update()` in the same context as `bridge.update()`**.
 - An adapter's responsibility ends at "thread-safe handover from its internal concurrency to the `update()` calling context". Reflecting into the pressed set, transforming, and output all happen in the single `update()` context.
 - Because of this split, input is not lost even when the sketch's loop is stalled by other work (it has already been settled inside the adapter); only transformation and output are late. **The exception is `GpioKeyInputAdapter`** (sampling happens inside `update()`, hence loop-rate dependent), accepted as being for inputs held a long time, such as pedals and buttons. The per-adapter table is under "`update()` rate and tolerance to lost input" in [ADAPTERS.md](ADAPTERS.md).
-- A mechanism for driving the bridge automatically from a task is not going into the core (the mutual exclusion would spread into `applyConfig()` and `typeText()`). If it becomes necessary, it can be added as an opt-in Arduino-layer wrapper (see the future notes in [DECISIONS.ja.md](DECISIONS.ja.md)).
+- ~~An opt-in mechanism for driving the bridge automatically from a task~~ is out of scope; callers drive `update()`.
 
 ## The control plane
 

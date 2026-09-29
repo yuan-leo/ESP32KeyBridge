@@ -30,9 +30,9 @@ tests/
 - Local: core unit test と examples compile。
 - S3 single: 必要時に接続する ESP32-S3 1台。core runtime smoke と reference example smoke。default profile で実行し、`.env` では `TEST_SERIAL_PORT_S3_SINGLE` を使う。
 - S3 peer: 常時接続された ESP32-S3 2台。USB data pin を直結し、USB Host adapter / USB Device adapter の境界を確認する。default profile で実行し、`.env` では `TEST_SERIAL_PORT_S3_PEER_HOST` と `TEST_SERIAL_PORT_PEER_DEVICE_S3_PEER_DEVICE` を使う。
-- Manual S3: GPIO matrix、実 USB keyboard、barcode reader、WebSerial UI など人の操作が必要な確認に使う。`.env` では既存プロジェクトと同じ `TEST_SERIAL_PORT_ESP32S3` を使う。
+- Manual S3: GPIO matrix、実 USB keyboard、barcode reader など人の操作が必要な確認に使う。`.env` では既存プロジェクトと同じ `TEST_SERIAL_PORT_ESP32S3` を使う。
 
-ESP32-P4 は常時接続の自動テスト環境には含めません。P4 は USB Host / Device bridge の example で登場する可能性がありますが、loopback 自動テストの前提にはしません。
+正式サポート対象は ESP32-S3 のみです。他の ESP32 variant はテスト対象および scope に含めません。
 
 ## カバレッジ計画
 
@@ -52,12 +52,14 @@ ESP32-P4 は常時接続の自動テスト環境には含めません。P4 は U
 | 7 | USB Host gamepad input adapter | | 実装済み | | 実装済み(ボタン / 多ボタン / ハット) | 実ゲームパッド確認 |
 | 7 | USB Host MIDI input adapter | | 実装済み | | 実装済み(Note On/Off / 2 ノート同時) | 実 MIDI 機器確認 |
 | 7 | USB Device 複合 output adapter | | 実装済み | | 実装済み(単キー / 修飾 / 6KRO / consumer / マウス ボタン・ホイール・XY / 複合同時 / LED→正本) | Host OS 認識 |
-| 7 | GPIO matrix / 単独キー input | 予定 | 予定 | | | 実装済み(matrix は実機確認済み) |
+| 7 | GPIO matrix / 単独キー input | — | — | | | 実装済み(matrix は実機確認済み) |
 | 7 | BLE HID output(peripheral) | | 実装済み(`UsbKeyboardToBle`) | | 実装済み(単キー / 修飾 / 6KRO / consumer / マウス ボタン・ホイール・XY / LED→正本) | 実 Host OS 認識 |
 | 7 | BLE HID input(central: keyboard / mouse) | | 実装済み(`BleKeyboardToUsb`) | | 実装済み(remap / キー+修飾 / 多キー / consumer / マウス ボタン・相対軸 / LED 転送 / 切断解放) | 実 BLE keyboard 確認 |
 | 7 | BLE HID input(central: gamepad) | | 実装済み | | 実装済み(ボタン / 多ボタン同時 / ハット / 斜め / 切断解放) | 実 BLE ゲームパッド確認 |
 | 7 | Bluetooth Classic HID output / input | | 実装済み(`ButtonsToClassic` / `ClassicKeyboardToBle`) | 実装済み(無印 ESP32 1台: stack + Device 3 profile SDP 登録 + Host 起動 + 未接続 adapter state) | 実装済み(無印 ESP32 2台: 双方向 keyboard / modifier / 6KRO / mouse / consumer output / LED / 切断解放) | 外部 Host OS / 市販 Classic keyboard 確認 |
-| - | 設定の保存 / 読み込み・CDC serial 設定 reference example | | 予定 | 予定 | | WebSerial 確認 |
+| - | ~~設定の保存 / 読み込み・CDC serial 設定 reference example~~ | | **scope 外** | **scope 外** | | **scope 外** |
+| 8 | Bluetooth 接続先 hotkey 切替(Scroll Lock + 上段 `1..N`)、選択 slot pairing(`Scroll Lock + 0`)、Scroll Lock LED status | 予定 | 予定 | | 予定 | 実 host 切替・pairing・LED 状態復元確認 |
+| 9 | locally hosted web UI(layout 切替 / macro 設定) | 予定 | 予定 | 予定 | | browser 実操作確認 |
 
 ## Peer テストの位置付け
 
@@ -77,9 +79,9 @@ peer テストは、USB adapter が実 USB 経由で期待どおり event / stat
 - `classic_hid_output`: bridge の Classic 複合出力を素の EspBle Classic HID Host で観測する。単キー / 修飾 / 6KRO / consumer raw report / mouse / LED→lock 正本。
 - `usb_device_keyboard_output`: Device 役 S3 が output pipeline から複合 HID report を出力し、Host 役 S3 が USB Host で観測する。単キー / 修飾 / 6KRO / consumer / マウス ボタン・ホイール・XY / 複合同時(KEY_STATE→CONSUMER→MOUSE)/ LED output report 受信 → lock 正本。LED→正本は EspUsbHost 2.3.0 で report ID 付き複合デバイスへ SET_REPORT できるようになり有効化(2.2.0 では skip)。
 
-追加候補:
+過去の追加候補(scope 外):
 
-- `usb_hid_cdc_config`: HID 出力と CDC 設定 reference example の最低限の共存を確認する。複雑な WebSerial UI 操作は manual に残す。
+- ~~`usb_hid_cdc_config`: HID 出力と CDC 設定 reference example の最低限の共存を確認する。~~
 
 旧実装の peer テストは削除済みです(参照点: commit `4d2d48151c62`)。
 

@@ -14,9 +14,17 @@ def test_required_project_files_exist():
         "CHANGELOG.md",
         "src/ESP32KeyBridge.h",
         "src/ESP32KeyBridge.cpp",
+        "src/ESP32KeyBridgeBluetooth.h",
+        "src/ESP32KeyBridgeSettings.h",
+        "src/ESP32KeyBridgeSettings.cpp",
+        "src/ESP32KeyBridgePreferences.h",
+        "src/ESP32KeyBridgeWeb.h",
+        "src/ESP32KeyBridgeEspBle.h",
         "examples/README.ja.md",
         "examples/README.md",
         "docs/REQUIREMENTS.ja.md",
+        "docs/SCOPE.md",
+        "docs/SETTINGS.md",
         "docs/CORE_DESIGN.ja.md",
         "docs/ADAPTERS.ja.md",
         "docs/DATA_MODEL.ja.md",
@@ -75,3 +83,16 @@ def test_examples_are_grouped_with_docs_and_compile_profiles():
                 missing.append(str((example_dir / required).relative_to(ROOT)))
 
     assert missing == []
+
+
+def test_phase2_settings_portal_is_offline_and_read_only():
+    web = (ROOT / "src/ESP32KeyBridgeWeb.h").read_text(encoding="utf-8")
+
+    assert 'server_.on("/", HTTP_GET' in web
+    assert 'server_.on("/api/v1/config", HTTP_GET' in web
+    assert 'server_.on("/api/v1/status", HTTP_GET' in web
+    assert 'server_.on("/healthz", HTTP_GET' in web
+    assert "HTTP_POST" not in web
+    assert "HTTP_PUT" not in web
+    assert "https://" not in web
+    assert "http://" not in web

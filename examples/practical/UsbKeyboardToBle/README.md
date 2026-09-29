@@ -7,6 +7,7 @@ Make a wired USB keyboard wireless. The keyboard plugs into the ESP32, and the P
 - The keyboard is read through the USB Host input adapter, and the result goes out through the BLE HID output adapter (`EspBleHidOutputAdapter`) as a HID over GATT keyboard + consumer + mouse.
 - Everything the bridge can do on the way through still applies: remap, disable, momentary layers, text macros, layout conversion. This sketch adds a hold-CapsLock navigation layer, because a wireless keyboard usually ends up somewhere without a mouse.
 - Lock state comes from the Bluetooth host: its LED output report is the authority, and the bridge forwards it back to the USB keyboard's LEDs. Press Caps Lock on the keyboard and the LED follows the host, not a guess.
+- Hold **Scroll Lock** and press top-row **1**, **2**, or **3** to switch to that bonded host slot. Press **Scroll Lock + 0** to replace the selected slot and enter pairing mode. The Scroll Lock LED flashes while switching or pairing, then the bridge restores the host's real Scroll Lock state.
 
 ## Only one USB port is needed
 
@@ -19,7 +20,7 @@ The PC side is Bluetooth, not USB, so only the keyboard side uses USB. That mean
 
 ## Pairing
 
-The device advertises as `KeyBridge Keyboard`. Pair with it once from the host's Bluetooth settings; bonding keeps it paired, and the sketch re-advertises after a disconnect so the host can come back on its own.
+The device advertises as `KeyBridge Keyboard`. Press **Scroll Lock + 0**, then pair it from the host's Bluetooth settings. Bonding keeps that host in the selected slot. Up to three slots are available (the bond limit of EspBle's bundled NimBLE build), and a normal disconnect reconnects only to the selected slot through directed advertising.
 
 ## ble.update() and bridge.update()
 

@@ -37,4 +37,4 @@ ESP32KEYBRIDGE_EXAMPLES=Basic uv run pytest examples_compile/
 ESP32KEYBRIDGE_EXAMPLES=Basic,HardcodedRemap uv run pytest examples_compile/
 ```
 
-現在のカバレッジと追加予定は [TEST_PLAN.ja.md](TEST_PLAN.ja.md) を参照してください。
+現在のカバレッジは [TEST_PLAN.ja.md](TEST_PLAN.ja.md) を参照してください。リポジトリ内の記述だけで追加予定は作りません。

@@ -8,13 +8,14 @@ Which document to read, and in what order. The documents readers use — the beg
 
 | I want to... | Read |
 | --- | --- |
+| See explicitly agreed additions and missing work | [SCOPE.md](SCOPE.md) |
 | Understand what the library does and see a working sketch | [../README.md](../README.md) |
 | **Start from zero: understand what is actually happening** | [GUIDE_BASICS.md](GUIDE_BASICS.md) — the beginner's guide: key model, transforms, and the traits and limits of each interface |
 | Find a sketch for my hardware | [../examples/README.md](../examples/README.md) — every example is a complete, flashable sketch |
 | Pick the right adapter, and know what it can and cannot do | [ADAPTERS.md](ADAPTERS.md) |
 | Know why the key model looks like this | [DATA_MODEL.md](DATA_MODEL.md) |
 | Write my own adapter | The `InputAdapter` / `OutputAdapter` comments in `src/ESP32KeyBridge.h`, the `TouchButtons` example, then [CORE_DESIGN.md](CORE_DESIGN.md) |
-| See where the project stands and what is left | [DEVELOPMENT_PLAN.ja.md](DEVELOPMENT_PLAN.ja.md) and the status column of [ADAPTERS.md](ADAPTERS.md) |
+| See implementation history and closed earlier scope | [DEVELOPMENT_PLAN.ja.md](DEVELOPMENT_PLAN.ja.md) and the status column of [ADAPTERS.md](ADAPTERS.md) |
 | Know why something was designed this way | [DECISIONS.ja.md](DECISIONS.ja.md) |
 
 ## The documents
@@ -36,14 +37,14 @@ Which document to read, and in what order. The documents readers use — the beg
 
 **Process** *(Japanese)*
 
-- [DEVELOPMENT_PLAN.ja.md](DEVELOPMENT_PLAN.ja.md) — implementation order, current position, and remaining work.
+- [DEVELOPMENT_PLAN.ja.md](DEVELOPMENT_PLAN.ja.md) — implementation history and closed scope.
 - [RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md) / [RELEASE_CHECKLIST.ja.md](RELEASE_CHECKLIST.ja.md) — what to confirm before a release, and how the shared release workflow runs.
 - [../tests/README.ja.md](../tests/README.ja.md) — the test layout (`unit/`, `examples_compile/`, `single/`, `peer/`, `manual/`) and how to run each.
-- [../tests/TEST_PLAN.ja.md](../tests/TEST_PLAN.ja.md) — the coverage matrix: what is tested where, and what is still planned.
+- [../tests/TEST_PLAN.ja.md](../tests/TEST_PLAN.ja.md) — the current coverage matrix.
 
 ## Conventions
 
 - Code examples in the documents spell out the namespace (`esp32keybridge::`) rather than relying on a `using` directive.
-- A document describes what is **implemented**; anything not yet built is marked as planned rather than written in the present tense.
+- A document describes what is **implemented**. Unimplemented historical ideas are marked **out of scope** and do not establish future work.
 - `ADAPTERS.md` distinguishes *implemented but not yet hardware-verified* from *hardware-verified*, so the status column can be trusted as-is when judging release readiness.
 - A bilingual document keeps both versions in step: change one, change the other in the same commit. The Japanese version is the authority when they disagree.

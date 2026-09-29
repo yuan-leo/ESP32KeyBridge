@@ -1,5 +1,14 @@
 # 要件
 
+> **scope について:** この文書は実装設計の履歴です。リポジトリ内の記述だけでは scope になりません。ChatGPT 上で明示的に合意されていない未実装項目は、以下で取り消し線を付けたとおり scope 外です。
+
+## ChatGPT で明示的に追加された scope
+
+- **Bluetooth 接続先 hotkey 切替(実装済み)**: Scroll Lock を既定 modifier として保持し、上段数字 `1` から stack / hardware の最大対応 slot までで、接続する paired Bluetooth device を選択する。`Scroll Lock + 0` で現在選択中 slot の pairing mode を開始する。Scroll Lock LED report に対応する physical keyboard では LED 点滅で切替 / pairing 状態を示し、完了後に本来の lock 状態を復元する。LED 非搭載・report 非対応 keyboard でも機能本体は動作する。
+- **後続の locally hosted web interface**: keyboard layout 切替と macro を設定する。
+
+実装状態と、まだ合意されていない詳細は [SCOPE.md](SCOPE.md) を正本とします。
+
 `ESP32KeyBridge` は、ESP32 シリーズを用いて様々な入力デバイスから取得したキーボード系入力を共通形式で処理し、任意の出力デバイスへ変換するための Arduino 向けライブラリです。
 
 ## 目的
@@ -8,20 +17,14 @@
 
 core は特定の入出力方式、設定形式、保存先、設定 UI に依存しません。USB Host / USB Device は入出力 adapter の一種であり、USB adapter の実装では `EspUsbHost` や `EspUsbDevice` を利用できます。
 
-代表的なユースケースは、USB HID keyboard、GPIO matrix、barcode reader などの入力を受け取り、キーマップ、レイヤー、キー入れ替え、入力統合を適用して USB HID keyboard や BLE HID などへ出力する構成です。WebSerial からの設定変更や USB HID + CDC 複合デバイスは、core ではなくリファレンス実装や examples 側で扱います。
+代表的なユースケースは、USB HID keyboard、GPIO matrix、barcode reader などの入力を受け取り、キーマップ、レイヤー、キー入れ替え、入力統合を適用して USB HID keyboard や BLE HID などへ出力する構成です。~~WebSerial からの設定変更や USB HID + CDC 複合デバイスのリファレンス実装~~は scope 外です。
 
 ## 対応プラットフォーム
 
-- ESP32
-- ESP32-S2
 - ESP32-S3
-- ESP32-C3
-- ESP32-C6
-- ESP32-H2
-- ESP32-P4
-- 将来追加される ESP32 シリーズ
+- ~~ESP32 / S2 / C3 / C6 / H2 / P4 および将来の variant~~ — scope 外・非サポート
 
-各 SoC が持つ機能に応じて、利用可能な入出力 adapter を選択できるものとします。
+正式サポートと検証対象は ESP32-S3 のみです。
 
 ## ライブラリの役割
 
@@ -50,7 +53,7 @@ GPIO:
 - キーパッド
 - ロータリーエンコーダ
 - フットスイッチ
-- 抵抗ラダー式キー
+- ~~抵抗ラダー式キー~~ — scope 外
 
 USB Host:
 
@@ -66,37 +69,37 @@ Bluetooth:
 - BLE Consumer Device
 - BLE Remote
 - Bluetooth Classic HID Keyboard
-- Bluetooth Classic HID Consumer Device
+- ~~Bluetooth Classic HID Consumer Device 入力~~ — scope 外
 
-UART / Serial:
+~~UART / Serial イベント入力(scope 外):~~
 
-- 外部マイコンからのキーイベント
-- 独自プロトコル
-- デバッグ入力
+- ~~外部マイコンからのキーイベント~~
+- ~~独自プロトコル~~
+- ~~デバッグ入力~~
 
-I2C:
+~~I2C 入力(scope 外):~~
 
-- GPIO Expander
-- キーパッドユニット
-- タッチ入力デバイス
+- ~~GPIO Expander~~
+- ~~キーパッドユニット~~
+- ~~タッチ入力デバイス~~
 
-SPI:
+~~SPI 入力(scope 外):~~
 
-- GPIO Expander
-- キーボードコントローラ
+- ~~GPIO Expander~~
+- ~~キーボードコントローラ~~
 
-ネットワーク:
+~~ネットワーク入力(scope 外):~~
 
-- ESP-NOW
-- TCP
-- UDP
-- WebSocket
+- ~~ESP-NOW~~
+- ~~TCP~~
+- ~~UDP~~
+- ~~WebSocket~~
 
-赤外線:
+~~赤外線入力(scope 外):~~
 
-- IR Remote
-- 学習リモコン
-- Consumer Control
+- ~~IR Remote~~
+- ~~学習リモコン~~
+- ~~Consumer Control~~
 
 ## 出力インターフェース
 
@@ -105,7 +108,7 @@ USB Device:
 - HID Keyboard
 - Consumer Control
 - Mouse
-- CDC Serial for reference configuration examples
+- ~~CDC Serial for reference configuration examples~~ — scope 外
 
 Bluetooth:
 
@@ -115,29 +118,29 @@ Bluetooth:
 
 UART:
 
-- シリアルイベント出力
+- ~~シリアルイベント出力~~ — scope 外(実装済みの文字・ログ出力とは別)
 - デバッグ出力
 
-ネットワーク:
+~~ネットワーク出力(scope 外):~~
 
-- ESP-NOW
-- TCP
-- UDP
-- MQTT
+- ~~ESP-NOW~~
+- ~~TCP~~
+- ~~UDP~~
+- ~~MQTT~~
 
-GPIO:
+~~GPIO 出力(scope 外):~~
 
-- LED
-- ブザー
-- リレー
-- 外部マイコン制御
+- ~~LED~~
+- ~~ブザー~~
+- ~~リレー~~
+- ~~外部マイコン制御~~
 
 ## キー変換機能
 
 - キーコード変換(1 段 remap、種別またぎ可)
 - キー入れ替え、キー無効化
 - モーメンタリレイヤー(virtual キートリガ、press 時確定)
-- マクロ実行(キーシーケンス macro、文字列タイプ macro)
+- マクロ実行(文字列タイプ macro)。~~キーシーケンス macro~~ は scope 外
 - キーボードのレイアウト変換((キー, Shift) 変換表 + Shift 抑制・合成、on/off 切替付き)
 - キーボードレイアウト記述(`en_us` / `ja_jp` を最初に、基本的な言語を同梱)とユーザー定義表
 - lock 状態管理(正本 = アクティブな lock 報告出力、正本不在時は終端ホストモード、全入力へ LED 転送)
@@ -145,13 +148,13 @@ GPIO:
 - マウスボタン変換、相対軸の反転・倍率
 - 独自キー定義(virtual 種別)
 
-ワンショット・トグル・tap/hold などの時間依存・状態合成系は、アダプタ側の論理押下合成で実現するか、将来検討とします([DECISIONS.ja.md](DECISIONS.ja.md) の将来メモ)。
+~~ワンショット・トグル・tap/hold などの core 機能~~は scope 外です。必要なら利用側アダプタが論理押下として合成します。
 
 ## 設定方針
 
 キーマップやレイヤーは、スケッチ内で決め打ちする使い方と、外部から読み込んだ設定 object として適用する使い方の両方を許容します。
 
-core は設定の取得方法、転送手段、保存先、ファイル形式、UI を規定しません。WebSerial、CDC serial、NVS、LittleFS などは、リファレンス実装や examples 側の選択肢として扱います。
+core は設定の取得方法、転送手段、保存先、ファイル形式、UI を規定しません。~~WebSerial、CDC serial、NVS、LittleFS のリファレンス実装~~は scope 外です。
 
 設定対象:
 
@@ -164,28 +167,28 @@ core は設定の取得方法、転送手段、保存先、ファイル形式、
 - 入力 adapter / 出力 adapter の有効化
 - 永続設定
 
-リファレンス実装で扱う可能性がある設定転送手段:
+~~リファレンス実装の設定転送案(scope 外):~~
 
-- USB CDC + WebSerial
-- UART
-- BLE
-- TCP
-- 独自プロトコル
+- ~~USB CDC + WebSerial~~
+- ~~UART~~
+- ~~BLE~~
+- ~~TCP~~
+- ~~独自プロトコル~~
 
-USB HID + CDC 複合デバイスの CDC serial で WebSerial 設定画面を提供する構成は、有力なリファレンス実装です。PC からは HID keyboard として見えつつ、ブラウザの WebSerial 画面または serial CLI から設定を読み書きできます。
+~~USB HID + CDC 複合デバイスによる WebSerial 設定画面 / serial CLI~~は scope 外です。
 
 ## 永続化
 
 core は永続化を必須にしません。必要なアプリケーションや example が、任意の保存先へ設定を保存できるものとします。
 
-保存先候補:
+~~保存先候補(scope 外):~~
 
-- NVS
-- LittleFS
-- SPIFFS
-- SD card
+- ~~NVS~~
+- ~~LittleFS~~
+- ~~SPIFFS~~
+- ~~SD card~~
 
-リファレンス実装では、小さい設定は NVS、容量の大きいキーマップや macro 定義は LittleFS / SPIFFS / SD card へ逃がせる設計を検討します。
+~~NVS / LittleFS / SPIFFS / SD card を使う永続設定リファレンス実装~~は scope 外です。
 
 ## 非機能要件
 
@@ -206,19 +209,19 @@ core は永続化を必須にしません。必要なアプリケーションや
 - BLE keyboard から USB keyboard への変換。
 - GPIO key matrix から USB keyboard への変換。
 - GPIO key matrix から BLE keyboard への変換。
-- USB keyboard から ESP-NOW への変換。
-- ESP-NOW から USB keyboard への変換。
-- Serial 入力から USB keyboard への変換。
-- IR remote から Consumer Control への変換。
+- ~~USB keyboard から ESP-NOW への変換。~~
+- ~~ESP-NOW から USB keyboard への変換。~~
+- ~~Serial イベント入力から USB keyboard への変換。~~
+- ~~IR remote から Consumer Control への変換。~~
 - USB barcode reader から serial 出力への変換。
 - US 刻印 keyboard を日本語設定の Windows へ接続し、記号を含めて刻印どおりに入力する(レイアウト変換)。
 - serial で受け取った文字列を、host の layout 設定に合わせた打鍵として送信する。
 - 複数の入力デバイスと USB keyboard + mouse 複合デバイス出力を組み合わせる。
-- WebSerial 設定画面で keymap を変更し、再ビルドなしで HID 出力へ反映する。
+- ~~WebSerial 設定画面で keymap を変更し、再ビルドなしで HID 出力へ反映する。~~
 - USB hub 経由の複数 keyboard を統合し、片方の Shift / Ctrl をもう片方の keyboard 入力にも効かせる。
 
 ## 位置付け
 
 本ライブラリは QMK のようなキーボードファームウェアそのものを目指すものではありません。ESP32 シリーズ上で動作する汎用的な「キーボード入力、統合、変換、出力エンジン」として位置付けます。
 
-主対象は keyboard / consumer control などの HID 系入力ですが、将来的に mouse、trackpad、pointer、wheel などの入力・出力も event domain の拡張として扱える余地を残します。各種入力デバイス、通信方式、出力方式を自由に組み合わせられることを優先し、SoC ごとの機能差は各 adapter 実装で吸収します。
+主対象は keyboard / consumer control などの HID 系入力です。実装済みの mouse / pointer / wheel も扱います。~~将来の event domain 拡張~~は scope 外です。SoC ごとの機能差は各 adapter 実装で吸収します。

@@ -6,13 +6,15 @@
 
 ## ドキュメント
 
+- `docs/SCOPE.md` は ChatGPT 上で明示的に合意した機能だけを含み、実装状態が正しい。
+- 公開文書の support 表記と release 検証対象が ESP32-S3 のみに限定されている。
 - `README.ja.md` / `README.md` の機能表・アダプタ表・対応環境表が実装と合っている。
-- `docs/ADAPTERS.ja.md` の状況列(**実装済み(実機検証待ち)** / **実装済み(実機検証済み)** / **構想**)が実際の検証状況と合っている。
+- `docs/ADAPTERS.ja.md` の状況列(**実装済み(実機検証待ち)** / **実装済み(実機検証済み)** / **scope 外**)が実際の検証状況と合っている。
 - `examples/README.ja.md` / `examples/README.md` の一覧が `examples/practical/` の実体と一致している(`tests/unit/test_repository_structure.py` が自動確認)。
 - `docs/REQUIREMENTS.ja.md` の要件と実装済み範囲の差分が説明できる。
 - `docs/CORE_DESIGN.ja.md` の core / adapter / example 境界とコールバック実行コンテキストの記述が実装と合っている。
-- `docs/CONFIGURATION.ja.md` の core 非依存方針と WebSerial / CDC reference example 方針が実装と合っている。
-- `docs/DEVELOPMENT_PLAN.ja.md` は現在の方針と残作業を示している。
+- `docs/CONFIGURATION.ja.md` が scope 外の履歴資料として明示されている。
+- `docs/DEVELOPMENT_PLAN.ja.md` は合意済み scope の完了状態を示し、リポジトリだけを根拠に残作業を作らない。
 - `docs/DECISIONS.ja.md` に、前回リリース以降に確定した設計判断が記録されている。
 - `tests/README.ja.md` / `tests/TEST_PLAN.ja.md` は現状のテスト構成とカバレッジと合っている。
 
