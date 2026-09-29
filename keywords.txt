@@ -42,6 +42,12 @@ EspBleHidHostMouseInputAdapter	KEYWORD1
 EspBleHidHostGamepadInputAdapter	KEYWORD1
 KeyboardLayoutSettings	KEYWORD1
 KeyboardLayoutSettingsStore	KEYWORD1
+KeyboardMacroSettings	KEYWORD1
+KeyboardMacroSettingsStore	KEYWORD1
+KeyboardMacroSettingsCodec	KEYWORD1
+MacroSettingsError	KEYWORD1
+MacroSettingsLoadStatus	KEYWORD1
+PreferencesMacroSettingsStorage	KEYWORD1
 SettingsNavigationInputAdapter	KEYWORD1
 SettingsNavigationSource	KEYWORD1
 SettingsNavigationAction	KEYWORD1
@@ -171,6 +177,9 @@ setLayoutConversionEnabled	KEYWORD2
 layoutConversionEnabled	KEYWORD2
 layoutConvertFailCount	KEYWORD2
 layoutConversionToggle	KEYWORD2
+clearTextMacros	KEYWORD2
+enableMacroEditing	KEYWORD2
+triggerUsage	KEYWORD2
 enableKeyboardNavigation	KEYWORD2
 setNavigationCaptureEnabled	KEYWORD2
 navigationCaptureEnabled	KEYWORD2

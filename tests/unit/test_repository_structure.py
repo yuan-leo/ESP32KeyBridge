@@ -15,6 +15,10 @@ def test_required_project_files_exist():
         "src/ESP32KeyBridge.h",
         "src/ESP32KeyBridge.cpp",
         "src/ESP32KeyBridgeBluetooth.h",
+        "src/ESP32KeyBridgeMacroSettings.h",
+        "src/ESP32KeyBridgeMacroSettings.cpp",
+        "src/ESP32KeyBridgeMacroSettingsJson.h",
+        "src/ESP32KeyBridgeMacroSettingsJson.cpp",
         "src/ESP32KeyBridgeSettings.h",
         "src/ESP32KeyBridgeSettings.cpp",
         "src/ESP32KeyBridgeSettingsJson.h",
@@ -88,7 +92,7 @@ def test_examples_are_grouped_with_docs_and_compile_profiles():
     assert missing == []
 
 
-def test_phase3_settings_portal_is_offline_and_has_one_write_endpoint():
+def test_phase5_settings_portal_is_offline_and_has_bounded_write_endpoints():
     web = (ROOT / "src/ESP32KeyBridgeWeb.h").read_text(encoding="utf-8")
 
     assert 'server_.on("/", HTTP_GET' in web
@@ -96,9 +100,11 @@ def test_phase3_settings_portal_is_offline_and_has_one_write_endpoint():
     assert 'server_.on("/api/v1/config", HTTP_PUT' in web
     assert 'server_.on("/api/v1/layouts", HTTP_GET' in web
     assert 'server_.on("/api/v1/navigation", HTTP_GET' in web
+    assert 'server_.on("/api/v1/macros", HTTP_GET' in web
+    assert 'server_.on("/api/v1/macros", HTTP_PUT' in web
     assert 'server_.on("/api/v1/status", HTTP_GET' in web
     assert 'server_.on("/healthz", HTTP_GET' in web
     assert "HTTP_POST" not in web
-    assert web.count("HTTP_PUT") == 1
+    assert web.count("HTTP_PUT") == 2
     assert "https://" not in web
     assert "http://" not in web

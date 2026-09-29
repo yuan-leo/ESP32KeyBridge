@@ -17,6 +17,11 @@ The ESP32-S3 also hosts the layout-settings page. Connect a phone to
 input/host layouts, conversion state, and toggle key are applied. Change these
 development credentials before deploying a device.
 
+The same page configures four persistent text macros. Select a unique F1-F24
+trigger and enter up to 31 characters using the phone. Pressing that function
+key on the wired keyboard consumes the key and types the saved text using the
+configured host layout.
+
 After releasing any keys already held, the attached wired keyboard controls the
 open page over the local Wi-Fi connection: use **Tab / Shift+Tab** or the arrow keys to move,
 **Enter / Space** to activate, and **Esc** to reload the saved values. Keyboard

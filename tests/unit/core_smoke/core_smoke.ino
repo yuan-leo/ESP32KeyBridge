@@ -1,5 +1,7 @@
 #include <ESP32KeyBridge.h>
 #include <ESP32KeyBridgeBluetooth.h>
+#include <ESP32KeyBridgeMacroSettings.h>
+#include <ESP32KeyBridgeMacroSettingsJson.h>
 #include <ESP32KeyBridgeSettings.h>
 #include <ESP32KeyBridgeSettingsJson.h>
 #include <ESP32KeyBridgeSettingsNavigation.h>
@@ -108,6 +110,178 @@ public:
   bool writeFails[2] = {};
   bool eraseFails[2] = {};
 };
+
+class FakeMacroSettingsStorage : public esp32keybridge::MacroSettingsBlobStorage
+{
+public:
+  esp32keybridge::SettingsBlobReadStatus read(uint8_t slot, uint8_t *data,
+                                             size_t capacity, size_t &size) override
+  {
+    size = 0;
+    if (slot > 1 || readFails[slot])
+    {
+      return esp32keybridge::SettingsBlobReadStatus::Error;
+    }
+    if (!present[slot])
+    {
+      return esp32keybridge::SettingsBlobReadStatus::NotFound;
+    }
+    size = lengths[slot];
+    if (lengths[slot] <= capacity)
+    {
+      std::memcpy(data, bytes[slot], lengths[slot]);
+    }
+    return esp32keybridge::SettingsBlobReadStatus::Read;
+  }
+
+  bool write(uint8_t slot, const uint8_t *data, size_t size) override
+  {
+    if (slot > 1 || writeFails[slot] || size > Capacity)
+    {
+      return false;
+    }
+    std::memcpy(bytes[slot], data, size);
+    lengths[slot] = size;
+    present[slot] = true;
+    return true;
+  }
+
+  bool erase(uint8_t slot) override
+  {
+    if (slot > 1)
+    {
+      return false;
+    }
+    present[slot] = false;
+    lengths[slot] = 0;
+    return true;
+  }
+
+  void corrupt(uint8_t slot, size_t offset)
+  {
+    assert(slot < 2 && present[slot] && offset < lengths[slot]);
+    bytes[slot][offset] ^= 0x5a;
+  }
+
+  static constexpr size_t Capacity =
+      esp32keybridge::KeyboardMacroSettingsCodec::EncodedSize;
+  uint8_t bytes[2][Capacity] = {};
+  size_t lengths[2] = {};
+  bool present[2] = {};
+  bool readFails[2] = {};
+  bool writeFails[2] = {};
+};
+
+static void test_macro_settings_validate_apply_and_replace()
+{
+  esp32keybridge::KeyboardMacroSettings settings;
+  esp32keybridge::MacroSettingsError error;
+  assert(settings.validate(&error));
+  assert(settings.setSlot(0, static_cast<uint16_t>(esp32keybridge::KeyboardUsage::F1),
+                          "hello", &error));
+  assert(settings.setSlot(1, static_cast<uint16_t>(esp32keybridge::KeyboardUsage::F13),
+                          "h\xc3\xa9", &error));
+  assert(!settings.setSlot(2, static_cast<uint16_t>(esp32keybridge::KeyboardUsage::A),
+                           "bad", &error));
+  assert(error.code == esp32keybridge::MacroSettingsErrorCode::InvalidTrigger);
+  assert(!settings.setSlot(2, static_cast<uint16_t>(esp32keybridge::KeyboardUsage::F1),
+                           "duplicate", &error));
+  assert(error.code == esp32keybridge::MacroSettingsErrorCode::DuplicateTrigger);
+  assert(!settings.setSlot(2, 0, "not disabled", &error));
+  const char invalidUtf8[] = {static_cast<char>(0xc0), static_cast<char>(0x80), 0};
+  assert(!settings.setSlot(2, static_cast<uint16_t>(esp32keybridge::KeyboardUsage::F2),
+                           invalidUtf8, &error));
+  const char tooLong[] = "12345678901234567890123456789012";
+  assert(!settings.setSlot(2, static_cast<uint16_t>(esp32keybridge::KeyboardUsage::F2),
+                           tooLong, &error));
+  assert(error.code == esp32keybridge::MacroSettingsErrorCode::TextTooLong);
+
+  esp32keybridge::ESP32KeyBridge bridge;
+  esp32keybridge::ESP32KeyBridgeConfig config;
+  assert(config.textMacro(esp32keybridge::KeyboardUsage::F2, "old"));
+  esp32keybridge::LayerConfig &layer =
+      config.addLayer(esp32keybridge::KeyboardUsage::CapsLock);
+  assert(layer.remap(esp32keybridge::KeyboardUsage::H,
+                     esp32keybridge::KeyboardUsage::Left));
+  assert(settings.apply(bridge, config, &error));
+  const esp32keybridge::TextMacro *macro =
+      config.findTextMacro(esp32keybridge::KeyboardUsage::F1);
+  assert(macro != nullptr && macro->length == 5);
+  assert(config.findTextMacro(esp32keybridge::KeyboardUsage::F2) == nullptr);
+  assert(config.layer(0).hasMapping(esp32keybridge::KeyboardUsage::H));
+  macro = config.findTextMacro(esp32keybridge::KeyboardUsage::F13);
+  assert(macro != nullptr && macro->length == 2 && macro->text[1] == 0xe9);
+}
+
+static void test_macro_settings_codec_store_and_recovery()
+{
+  esp32keybridge::KeyboardMacroSettings first;
+  esp32keybridge::KeyboardMacroSettings second;
+  assert(first.setSlot(0, static_cast<uint16_t>(esp32keybridge::KeyboardUsage::F3),
+                       "first"));
+  assert(second.setSlot(0, static_cast<uint16_t>(esp32keybridge::KeyboardUsage::F4),
+                        "second"));
+
+  uint8_t record[esp32keybridge::KeyboardMacroSettingsCodec::EncodedSize] = {};
+  esp32keybridge::MacroSettingsError error;
+  assert(esp32keybridge::KeyboardMacroSettingsCodec::encode(
+      first, 7, record, sizeof(record), &error));
+  esp32keybridge::KeyboardMacroSettings decoded;
+  uint32_t generation = 0;
+  assert(esp32keybridge::KeyboardMacroSettingsCodec::decode(
+             record, sizeof(record), decoded, generation, &error) ==
+         esp32keybridge::MacroSettingsDecodeStatus::Loaded);
+  assert(decoded == first && generation == 7);
+
+  FakeMacroSettingsStorage storage;
+  esp32keybridge::KeyboardMacroSettingsStore store(storage);
+  assert(store.loadOrDefault(decoded, &error) ==
+         esp32keybridge::MacroSettingsLoadStatus::DefaultsNoSavedSettings);
+  assert(store.save(first, &error));
+  assert(store.save(second, &error));
+  assert(store.loadOrDefault(decoded, &error) ==
+         esp32keybridge::MacroSettingsLoadStatus::Loaded);
+  assert(decoded == second);
+  storage.corrupt(1, 100);
+  assert(store.loadOrDefault(decoded, &error) ==
+         esp32keybridge::MacroSettingsLoadStatus::LoadedRecovered);
+  assert(decoded == first);
+  assert(error.code == esp32keybridge::MacroSettingsErrorCode::ChecksumMismatch);
+}
+
+static void test_macro_settings_json_round_trip_and_strictness()
+{
+  const char json[] =
+      "{\"slots\":[{\"text\":\"line\\n\\\"two\\\"\",\"triggerUsage\":58},"
+      "{\"triggerUsage\":104,\"text\":\"\\uD83D\\uDE00\"},"
+      "{\"triggerUsage\":0,\"text\":\"\"},{\"triggerUsage\":0,\"text\":\"\"}],"
+      "\"schemaVersion\":1}";
+  esp32keybridge::KeyboardMacroSettings settings;
+  esp32keybridge::MacroSettingsError error;
+  assert(esp32keybridge::decodeKeyboardMacroSettingsJson(
+      json, std::strlen(json), settings, &error));
+  assert(settings.triggerUsage(0) == 58);
+  assert(std::strcmp(settings.text(0), "line\n\"two\"") == 0);
+  assert(std::strlen(settings.text(1)) == 4);
+
+  char encoded[1536] = {};
+  assert(esp32keybridge::encodeKeyboardMacroSettingsJson(
+             settings, encoded, sizeof(encoded), &error) > 0);
+  esp32keybridge::KeyboardMacroSettings decoded;
+  assert(esp32keybridge::decodeKeyboardMacroSettingsJson(
+      encoded, std::strlen(encoded), decoded, &error));
+  assert(decoded == settings);
+
+  const esp32keybridge::KeyboardMacroSettings before = decoded;
+  const char duplicateTrigger[] =
+      "{\"schemaVersion\":1,\"slots\":["
+      "{\"triggerUsage\":58,\"text\":\"a\"},{\"triggerUsage\":58,\"text\":\"b\"},"
+      "{\"triggerUsage\":0,\"text\":\"\"},{\"triggerUsage\":0,\"text\":\"\"}]}";
+  assert(!esp32keybridge::decodeKeyboardMacroSettingsJson(
+      duplicateTrigger, std::strlen(duplicateTrigger), decoded, &error));
+  assert(error.code == esp32keybridge::MacroSettingsErrorCode::DuplicateTrigger);
+  assert(decoded == before);
+}
 
 static void test_layout_settings_validate_and_apply()
 {
@@ -2478,6 +2652,9 @@ static void run(const char *name, void (*test)())
 
 static void runAllTests()
 {
+  run("macro_settings_validate_apply_and_replace", test_macro_settings_validate_apply_and_replace);
+  run("macro_settings_codec_store_and_recovery", test_macro_settings_codec_store_and_recovery);
+  run("macro_settings_json_round_trip_and_strictness", test_macro_settings_json_round_trip_and_strictness);
   run("layout_settings_validate_and_apply", test_layout_settings_validate_and_apply);
   run("layout_settings_codec_rejects_corruption", test_layout_settings_codec_rejects_corruption);
   run("layout_settings_store_defaults_and_round_trip", test_layout_settings_store_defaults_and_round_trip);

@@ -24,6 +24,7 @@
 #include <ESP32KeyBridge.h>
 #include <ESP32KeyBridgeEspBle.h>
 #include <ESP32KeyBridgeEspUsbHost.h>
+#include <ESP32KeyBridgeMacroSettings.h>
 #include <ESP32KeyBridgePreferences.h>
 #include <ESP32KeyBridgeSettings.h>
 #include <ESP32KeyBridgeSettingsNavigation.h>
@@ -44,6 +45,9 @@ esp32keybridge::ESP32KeyBridgeConfig bridgeConfig;
 esp32keybridge::KeyboardLayoutSettings layoutSettings;
 esp32keybridge::PreferencesLayoutSettingsStorage settingsNvs;
 esp32keybridge::KeyboardLayoutSettingsStore settingsStore(settingsNvs);
+esp32keybridge::KeyboardMacroSettings macroSettings;
+esp32keybridge::PreferencesMacroSettingsStorage macroNvs;
+esp32keybridge::KeyboardMacroSettingsStore macroStore(macroNvs);
 esp32keybridge::Esp32S3SettingsWebServer settingsWeb(layoutSettings, bridge);
 
 void setup()
@@ -79,6 +83,15 @@ void setup()
   {
     Serial.printf("Layout settings detail: %s\n", settingsError.message);
   }
+  esp32keybridge::MacroSettingsError macroError;
+  const esp32keybridge::MacroSettingsLoadStatus macroLoadStatus =
+      macroStore.loadOrDefault(macroSettings, &macroError);
+  Serial.printf("Macro settings load status: %u\n",
+                static_cast<unsigned>(macroLoadStatus));
+  if (macroError.message != nullptr)
+  {
+    Serial.printf("Macro settings detail: %s\n", macroError.message);
+  }
 
   esp32keybridge::InputConfig &keyboardConfig = bridgeConfig.addInputConfig();
   bridge.addInput(keyboard, keyboardConfig);
@@ -98,6 +111,12 @@ void setup()
                   settingsError.message != nullptr ? settingsError.message : "unknown");
     return;
   }
+  if (!macroSettings.apply(bridge, bridgeConfig, &macroError))
+  {
+    Serial.printf("Macro settings apply failed: %s\n",
+                  macroError.message != nullptr ? macroError.message : "unknown");
+    return;
+  }
 
   // 4) Start the local settings website. Connect a phone to this WPA2 network
   // and open http://192.168.4.1/. Replace these development credentials before
@@ -105,6 +124,11 @@ void setup()
   if (!settingsWeb.enableEditing(settingsStore, bridgeConfig, keyboardConfig))
   {
     Serial.println("Settings editing could not be enabled");
+    return;
+  }
+  if (!settingsWeb.enableMacroEditing(macroSettings, macroStore, bridgeConfig))
+  {
+    Serial.println("Macro editing could not be enabled");
     return;
   }
   if (!settingsWeb.enableKeyboardNavigation(settingsKeyboard))

@@ -64,6 +64,7 @@ bridge の core は **Arduino / ESP-IDF / ハードウェアのいずれにも�
 | USB Host 入力 | ✅ |
 | USB Device 出力 | ✅ |
 | BLE HID 入出力 | ✅ |
+| local Wi-Fi layout / macro 設定 UI | ✅ |
 | Bluetooth Classic HID | — |
 
 S3 の native USB controller は 1 つなので、USB Host または USB Device の一方と、反対側の BLE を組み合わせます。他の ESP32 variant 向けコードや過去の example が残っていても、正式サポートおよび合意済み scope には含まれません。

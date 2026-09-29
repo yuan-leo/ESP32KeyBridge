@@ -31,7 +31,7 @@ Implementation details: a Scroll Lock tap with no selector is passed through as 
 
 ## Later milestone: locally hosted configuration UI
 
-Status: **in progress (phases 1 through 4 implemented)**.
+Status: **implemented (phases 1 through 5)**.
 
 - The only supported target for this milestone is **ESP32-S3**.
 - The S3 has one USB OTG role at a time. A wired USB keyboard input therefore
@@ -57,6 +57,10 @@ Status: **in progress (phases 1 through 4 implemented)**.
   short polling lease, keyboard keys are withheld from the BLE host. Capture
   begins only after an all-released keyboard snapshot, expires automatically,
   and keys held at expiry stay suppressed until release.
+- Phase 5 adds four persisted text-macro slots. Each slot is disabled or binds
+  a unique F1-F24 key to 1-31 UTF-8 characters. Macro settings have their own
+  versioned, CRC-protected alternating NVS records and strict complete-document
+  JSON endpoint. The verified record replaces the live macro table atomically.
 
 - Provide a locally hosted web interface.
 - Configure keyboard-layout switching through that interface.
@@ -65,7 +69,7 @@ Status: **in progress (phases 1 through 4 implemented)**.
 The current development portal uses an ESP32-S3 WPA2 SoftAP with fixed example
 credentials. Production credential provisioning, captive-portal behavior, and
 an authentication model beyond WPA2 are not yet specified. Macro persistence
-is also not part of the layout-settings record.
+is stored independently rather than being added to the layout-settings record.
 
 ## Explicitly not inferred
 

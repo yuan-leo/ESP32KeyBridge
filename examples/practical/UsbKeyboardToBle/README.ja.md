@@ -16,6 +16,11 @@ password `keybridge` へ接続し、`http://192.168.4.1/` を開きます。保�
 二重化 NVS record の読戻し確認後に input/host layout、変換状態、toggle key
 を適用します。実運用前にこの開発用 credential を変更してください。
 
+同じ page で4個の永続 text macro も設定できます。重複しない F1-F24 trigger
+を選び、phone から31文字以内の text を入力します。有線 keyboard でその
+function key を押すと key 自体を消費し、設定済み host layout で text を
+type します。
+
 page を開いて、押したままの key をいったん全て release すると、接続した
 有線 keyboard から local Wi-Fi 経由で操作できます。**Tab / Shift+Tab** または矢印 key で移動し、**Enter / Space**
 で実行、**Esc** で保存済み値を再読込みします。capture 中の keyboard key

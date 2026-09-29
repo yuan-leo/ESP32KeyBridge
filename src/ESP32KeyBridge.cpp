@@ -810,6 +810,15 @@ const TextMacro *ESP32KeyBridgeConfig::findTextMacro(Key trigger) const
   return nullptr;
 }
 
+void ESP32KeyBridgeConfig::clearTextMacros()
+{
+  for (size_t i = 0; i < MaxTextMacros; ++i)
+  {
+    textMacros_[i] = TextMacro();
+  }
+  textMacroCount_ = 0;
+}
+
 void ESP32KeyBridgeConfig::setAxisScale(Axis axis, int16_t scale)
 {
   axisScales_[static_cast<size_t>(axis)] = scale;
@@ -833,11 +842,7 @@ void ESP32KeyBridgeConfig::clear()
   {
     layers_[i].clear();
   }
-  for (size_t i = 0; i < MaxTextMacros; ++i)
-  {
-    textMacros_[i] = TextMacro();
-  }
-  textMacroCount_ = 0;
+  clearTextMacros();
   for (size_t i = 0; i < kAxisCount; ++i)
   {
     axisScales_[i] = 1;

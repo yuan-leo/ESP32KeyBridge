@@ -9,6 +9,8 @@
 #include <WebServer.h>
 #include <WiFi.h>
 
+#include "ESP32KeyBridgeMacroSettings.h"
+#include "ESP32KeyBridgeMacroSettingsJson.h"
 #include "ESP32KeyBridgeSettings.h"
 #include "ESP32KeyBridgeSettingsJson.h"
 #include "ESP32KeyBridgeSettingsNavigation.h"
@@ -32,6 +34,7 @@ h1{font-size:clamp(2rem,8vw,3.4rem);line-height:1;margin:.3rem 0 .8rem}.lede{col
 .label{color:var(--muted);font-size:.78rem;letter-spacing:.09em;text-transform:uppercase}.value{font-size:1.45rem;font-weight:650;margin-top:6px;word-break:break-word}
 .status{display:inline-flex;align-items:center;gap:8px}.dot{width:10px;height:10px;border-radius:50%;background:var(--warn);box-shadow:0 0 16px var(--warn)}.dot.on{background:var(--accent);box-shadow:0 0 16px var(--accent)}
 select{width:100%;margin-top:8px;padding:11px 12px;border:1px solid var(--line);border-radius:10px;background:#111813;color:var(--text);font:inherit}label.card{display:block}.check{display:flex;align-items:center;gap:12px;margin-top:13px;font-size:1.08rem}.check input{width:20px;height:20px;accent-color:var(--accent)}
+.macro-card{margin-top:16px}.macro-row{display:grid;grid-template-columns:minmax(120px,.35fr) 1fr;gap:12px;margin-top:12px}.macro-row textarea{width:100%;min-height:48px;resize:vertical;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:#111813;color:var(--text);font:inherit}.hint{color:var(--muted);font-size:.88rem;margin:6px 0 0}@media(max-width:600px){.macro-row{grid-template-columns:1fr}}
 .actions{display:flex;align-items:center;gap:14px;margin-top:18px}button{border:0;border-radius:12px;background:var(--accent);color:#0d1710;padding:12px 20px;font:700 1rem system-ui;cursor:pointer}button:disabled{opacity:.45;cursor:not-allowed}.message{color:var(--muted)}.message.error{color:#ff9f94}
 footer{color:var(--muted);font-size:.86rem;margin-top:22px}code{color:var(--accent)}#keyboard-status{display:block;margin-top:7px}
 </style>
@@ -49,23 +52,35 @@ footer{color:var(--muted);font-size:.86rem;margin-top:22px}code{color:var(--acce
 </section>
 <div class="actions"><button id="save" type="submit">Save settings</button><span class="message" id="save-status" role="status"></span></div>
 </form>
-<footer>Served directly by the ESP32-S3. API: <code>/api/v1/config</code> and <code>/api/v1/status</code>.<span id="keyboard-status">Checking wired keyboard navigation…</span></footer>
+<form id="macro-form" class="card macro-card">
+<div class="label">Text macros</div><div class="value">Function-key shortcuts</div>
+<p class="hint">Choose a unique F1–F24 trigger and up to 31 characters. Disabled slots must be empty.</p>
+<div id="macro-slots"></div>
+<div class="actions"><button id="save-macros" type="submit">Save macros</button><span class="message" id="macro-status" role="status"></span></div>
+</form>
+<footer>Served directly by the ESP32-S3. API: <code>/api/v1/config</code>, <code>/api/v1/macros</code>, and <code>/api/v1/status</code>.<span id="keyboard-status">Checking wired keyboard navigation…</span></footer>
 </main>
 <script>
 const $=id=>document.getElementById(id);
 let editable=false;
+let macroAvailable=false;
 async function json(path){const r=await fetch(path,{cache:'no-store'});if(!r.ok)throw new Error(r.status);return r.json()}
 function message(text,error=false){$('save-status').textContent=text;$('save-status').classList.toggle('error',error)}
+function macroMessage(text,error=false){$('macro-status').textContent=text;$('macro-status').classList.toggle('error',error)}
 function ensureToggle(value){const s=$('toggle');if(![...s.options].some(o=>Number(o.value)===value)){const o=document.createElement('option');o.value=value;o.textContent='HID 0x'+value.toString(16).padStart(2,'0').toUpperCase();s.append(o)}s.value=String(value)}
 async function load(){try{const [l,c]=await Promise.all([json('/api/v1/layouts'),json('/api/v1/config')]);for(const id of ['input-layout','host-layout']){const s=$(id);s.replaceChildren(...l.layouts.map(name=>{const o=document.createElement('option');o.value=name;o.textContent=name;return o}))}$('input-layout').value=c.inputLayout;$('host-layout').value=c.hostLayout;$('conversion').checked=c.layoutConversionEnabled;ensureToggle(c.layoutConversionToggleUsage);editable=!!c.editable;$('save').disabled=!editable;if(!editable)message('Read-only mode')}catch(e){editable=false;message('Configuration unavailable',true);$('save').disabled=true}}
+function macroOptions(){const values=[[0,'Disabled']];for(let i=1;i<=12;i++)values.push([57+i,'F'+i]);for(let i=13;i<=24;i++)values.push([91+i,'F'+i]);return values}
+function buildMacroRows(){const root=$('macro-slots');for(let i=0;i<4;i++){const row=document.createElement('div');row.className='macro-row';const label=document.createElement('label');label.textContent='Macro '+(i+1);const select=document.createElement('select');select.id='macro-trigger-'+i;for(const [value,name] of macroOptions()){const o=document.createElement('option');o.value=value;o.textContent=name;select.append(o)}label.append(select);const text=document.createElement('textarea');text.id='macro-text-'+i;text.maxLength=124;text.placeholder='Text typed when the trigger is pressed';select.addEventListener('change',()=>{text.disabled=select.value==='0';if(text.disabled)text.value=''});row.append(label,text);root.append(row)}}
+async function loadMacros(){try{const m=await json('/api/v1/macros');m.slots.forEach((slot,i)=>{const trigger=$('macro-trigger-'+i),text=$('macro-text-'+i);trigger.value=String(slot.triggerUsage);text.value=slot.text;text.disabled=slot.triggerUsage===0});macroAvailable=true;$('save-macros').disabled=!editable;if(!editable)macroMessage('Read-only mode')}catch(e){macroAvailable=false;macroMessage('Macro configuration unavailable',true);$('save-macros').disabled=true}}
 async function refreshStatus(){try{const s=await json('/api/v1/status');$('device-status').textContent=`Online · conversion ${s.layoutConversionEnabled?'on':'off'} · ${s.wifiClients} phone${s.wifiClients===1?'':'s'} connected${s.mergedOverflow||s.outputOverflow?' · key overflow':''}`}catch(e){$('device-status').textContent='Device disconnected'}}
-function controls(){return [...document.querySelectorAll('select,input,button')].filter(e=>!e.disabled)}
+function controls(){return [...document.querySelectorAll('select,input,textarea,button')].filter(e=>!e.disabled)}
 function moveFocus(delta){const c=controls();if(!c.length)return;let i=c.indexOf(document.activeElement);if(i<0)i=delta>0?-1:0;i=(i+delta+c.length)%c.length;c[i].focus()}
-function navigate(action){const e=document.activeElement;if(action==='next'){moveFocus(1);return}if(action==='previous'){moveFocus(-1);return}if(action==='cancel'){load();return}if(!e||e===document.body){moveFocus(1);return}if(e.tagName==='SELECT'&&['up','down','left','right','home','end'].includes(action)){const last=e.options.length-1;e.selectedIndex=action==='home'?0:action==='end'?last:Math.max(0,Math.min(last,e.selectedIndex+(['up','left'].includes(action)?-1:1)));e.dispatchEvent(new Event('change'));return}if(e.type==='checkbox'){if(action==='activate')e.checked=!e.checked;else if(['up','left'].includes(action))e.checked=false;else if(['down','right'].includes(action))e.checked=true;return}if(action==='activate'){if(e.tagName==='BUTTON')e.click();else moveFocus(1);return}if(action==='home'){const c=controls();if(c.length)c[0].focus();return}if(action==='end'){const c=controls();if(c.length)c[c.length-1].focus();return}if(['up','left'].includes(action))moveFocus(-1);else if(['down','right'].includes(action))moveFocus(1)}
+function navigate(action){const e=document.activeElement;if(action==='next'){moveFocus(1);return}if(action==='previous'){moveFocus(-1);return}if(action==='cancel'){load();loadMacros();return}if(!e||e===document.body){moveFocus(1);return}if(e.tagName==='SELECT'&&['up','down','left','right','home','end'].includes(action)){const last=e.options.length-1;e.selectedIndex=action==='home'?0:action==='end'?last:Math.max(0,Math.min(last,e.selectedIndex+(['up','left'].includes(action)?-1:1)));e.dispatchEvent(new Event('change'));return}if(e.type==='checkbox'){if(action==='activate')e.checked=!e.checked;else if(['up','left'].includes(action))e.checked=false;else if(['down','right'].includes(action))e.checked=true;return}if(action==='activate'){if(e.tagName==='BUTTON')e.click();else moveFocus(1);return}if(action==='home'){const c=controls();if(c.length)c[0].focus();return}if(action==='end'){const c=controls();if(c.length)c[c.length-1].focus();return}if(['up','left'].includes(action))moveFocus(-1);else if(['down','right'].includes(action))moveFocus(1)}
 let navWasAvailable=false;
 async function pollNavigation(){if(document.hidden){navWasAvailable=false;$('keyboard-status').textContent='Wired keyboard navigation paused';setTimeout(pollNavigation,250);return}try{const n=await json('/api/v1/navigation');$('keyboard-status').textContent=!n.available?'Wired keyboard navigation unavailable':n.capture?'Wired keyboard navigation active: Tab/arrows, Enter/Space, Esc':'Release all keys to start wired keyboard navigation';if(n.capture&&!navWasAvailable&&document.activeElement===document.body)moveFocus(1);navWasAvailable=!!n.capture;if(n.action&&n.action!=='none')navigate(n.action)}catch(e){navWasAvailable=false;$('keyboard-status').textContent='Wired keyboard navigation disconnected'}finally{setTimeout(pollNavigation,80)}}
 $('settings-form').addEventListener('submit',async e=>{e.preventDefault();$('save').disabled=true;message('Saving…');const body={schemaVersion:1,inputLayout:$('input-layout').value,hostLayout:$('host-layout').value,layoutConversionEnabled:$('conversion').checked,layoutConversionToggleUsage:Number($('toggle').value)};try{const r=await fetch('/api/v1/config',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});const result=await r.json();if(!r.ok)throw new Error(result.message||result.error||r.status);message('Saved and applied');await load();await refreshStatus()}catch(err){message('Save failed: '+err.message,true)}finally{$('save').disabled=!editable}});
-load();refreshStatus();pollNavigation();setInterval(refreshStatus,1500);
+$('macro-form').addEventListener('submit',async e=>{e.preventDefault();$('save-macros').disabled=true;macroMessage('Saving…');const body={schemaVersion:1,slots:[0,1,2,3].map(i=>({triggerUsage:Number($('macro-trigger-'+i).value),text:$('macro-text-'+i).value}))};try{const r=await fetch('/api/v1/macros',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});const result=await r.json();if(!r.ok)throw new Error(result.message||result.error||r.status);macroMessage('Saved and applied');await loadMacros()}catch(err){macroMessage('Save failed: '+err.message,true)}finally{$('save-macros').disabled=!editable||!macroAvailable}});
+buildMacroRows();load().then(loadMacros);refreshStatus();pollNavigation();setInterval(refreshStatus,1500);
 </script>
 </body>
 </html>)HTML";
@@ -123,7 +138,8 @@ public:
   bool enableEditing(KeyboardLayoutSettingsStore &store,
                      ESP32KeyBridgeConfig &config, InputConfig &inputConfig)
   {
-    if (editableSettings_ == nullptr || editableBridge_ == nullptr || started_)
+    if (editableSettings_ == nullptr || editableBridge_ == nullptr || started_ ||
+        (macroConfig_ != nullptr && macroConfig_ != &config))
     {
       return false;
     }
@@ -146,6 +162,21 @@ public:
       return false;
     }
     navigation_ = &navigation;
+    return true;
+  }
+
+  bool enableMacroEditing(KeyboardMacroSettings &settings,
+                          KeyboardMacroSettingsStore &store,
+                          ESP32KeyBridgeConfig &config)
+  {
+    if (editableBridge_ == nullptr || started_ ||
+        (config_ != nullptr && config_ != &config))
+    {
+      return false;
+    }
+    macroSettings_ = &settings;
+    macroStore_ = &store;
+    macroConfig_ = &config;
     return true;
   }
 
@@ -285,6 +316,8 @@ private:
     server_.on("/api/v1/config", HTTP_GET, [this]() { sendConfig(); });
     server_.on("/api/v1/config", HTTP_PUT, [this]() { updateConfig(); });
     server_.on("/api/v1/layouts", HTTP_GET, [this]() { sendLayouts(); });
+    server_.on("/api/v1/macros", HTTP_GET, [this]() { sendMacros(); });
+    server_.on("/api/v1/macros", HTTP_PUT, [this]() { updateMacros(); });
     server_.on("/api/v1/navigation", HTTP_GET, [this]() { sendNavigation(); });
     server_.on("/api/v1/status", HTTP_GET, [this]() { sendStatus(); });
     server_.on("/healthz", HTTP_GET, [this]() {
@@ -367,6 +400,13 @@ private:
       sendApiError(400, "invalid_settings", error.field, error.message);
       return;
     }
+    if (macroSettings_ != nullptr &&
+        macroSettings_->usesTrigger(candidate.layoutConversionToggleUsage()))
+    {
+      sendApiError(409, "trigger_conflict", "layoutConversionToggleUsage",
+                   "layout conversion toggle conflicts with a macro trigger");
+      return;
+    }
 
     const KeyboardLayoutSettings previous = *editableSettings_;
     if (!store_->save(candidate, &error))
@@ -415,6 +455,77 @@ private:
     server_.send(200, "application/json; charset=utf-8", body);
   }
 
+  void sendMacros()
+  {
+    if (macroSettings_ == nullptr)
+    {
+      sendApiError(404, "not_available", nullptr,
+                   "macro settings are not configured");
+      return;
+    }
+    char body[1536] = {};
+    MacroSettingsError error;
+    if (encodeKeyboardMacroSettingsJson(*macroSettings_, body, sizeof(body),
+                                        &error) == 0)
+    {
+      sendApiError(500, "internal_error", error.field, error.message);
+      return;
+    }
+    commonHeaders();
+    server_.send(200, "application/json; charset=utf-8", body);
+  }
+
+  void updateMacros()
+  {
+    if (macroSettings_ == nullptr || macroStore_ == nullptr ||
+        macroConfig_ == nullptr || editableBridge_ == nullptr)
+    {
+      sendApiError(405, "read_only", nullptr,
+                   "macro editing is not enabled");
+      return;
+    }
+    const String &requestBody = server_.arg("plain");
+    if (requestBody.length() == 0 || requestBody.length() > 1536)
+    {
+      sendApiError(requestBody.length() > 1536 ? 413 : 400, "invalid_request",
+                   "json", "request body must contain at most 1536 bytes");
+      return;
+    }
+
+    KeyboardMacroSettings candidate;
+    MacroSettingsError error;
+    if (!decodeKeyboardMacroSettingsJson(requestBody.c_str(),
+                                         requestBody.length(), candidate, &error))
+    {
+      sendApiError(400, "invalid_macro_settings", error.field, error.message);
+      return;
+    }
+    if (settings_ != nullptr &&
+        candidate.usesTrigger(settings_->layoutConversionToggleUsage()))
+    {
+      sendApiError(409, "trigger_conflict", "triggerUsage",
+                   "macro trigger conflicts with the layout conversion toggle");
+      return;
+    }
+    const KeyboardMacroSettings previous = *macroSettings_;
+    if (!macroStore_->save(candidate, &error))
+    {
+      sendApiError(500, "storage_failed", error.field, error.message);
+      return;
+    }
+    *macroSettings_ = candidate;
+    if (!macroSettings_->apply(*editableBridge_, *macroConfig_, &error))
+    {
+      *macroSettings_ = previous;
+      MacroSettingsError rollbackError;
+      macroStore_->save(previous, &rollbackError);
+      previous.apply(*editableBridge_, *macroConfig_, &rollbackError);
+      sendApiError(500, "apply_failed", error.field, error.message);
+      return;
+    }
+    sendMacros();
+  }
+
   void sendNavigation()
   {
     if (navigation_ == nullptr)
@@ -461,6 +572,9 @@ private:
   KeyboardLayoutSettingsStore *store_ = nullptr;
   ESP32KeyBridgeConfig *config_ = nullptr;
   InputConfig *inputConfig_ = nullptr;
+  KeyboardMacroSettings *macroSettings_ = nullptr;
+  KeyboardMacroSettingsStore *macroStore_ = nullptr;
+  ESP32KeyBridgeConfig *macroConfig_ = nullptr;
   SettingsNavigationSource *navigation_ = nullptr;
   WebServer server_;
   static constexpr uint32_t NavigationLeaseMilliseconds = 1200;

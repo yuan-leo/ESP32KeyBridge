@@ -4,7 +4,7 @@
 
 ESP32-S3-hosted settings website bring-up. It starts a WPA2 SoftAP and serves a
 responsive, offline page for editing the persisted layout configuration and
-viewing live bridge status. Saves are strictly validated, written to the
+four F1-F24 text macros while viewing live bridge status. Saves are strictly validated, written to the
 redundant NVS store, read back, and then applied to the bridge.
 
 This standalone bring-up sketch does not attach a keyboard, so its navigation
@@ -28,6 +28,8 @@ The page and APIs are compiled into firmware and use no internet-hosted assets:
 - `GET /api/v1/config` — persisted layout settings and edit capability
 - `PUT /api/v1/config` — validate, save, and atomically apply settings
 - `GET /api/v1/layouts` — supported layout names
+- `GET /api/v1/macros` — complete persisted macro table
+- `PUT /api/v1/macros` — validate, save, and atomically replace macros
 - `GET /api/v1/navigation` — renew keyboard capture and receive one action
 - `GET /api/v1/status` — live conversion, client count, and overflow status
 - `GET /healthz` — plain-text health check

@@ -1013,6 +1013,9 @@ public:
   // full or the text is too long / invalid.
   bool textMacro(Key trigger, const char *utf8);
   const TextMacro *findTextMacro(Key trigger) const;
+  // Removes every text macro while preserving remaps, layers, input settings,
+  // layouts, and other configuration. Used by full-table settings updates.
+  void clearTextMacros();
 
   // Relative axis transform: negative scale inverts (natural scrolling),
   // magnitude multiplies. Default 1.

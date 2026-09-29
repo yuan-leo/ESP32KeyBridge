@@ -1,7 +1,8 @@
-# Persistent layout settings (ESP32-S3)
+# Persistent local settings (ESP32-S3)
 
-Phase 1 of the locally hosted configuration work provides the settings and
-persistence layer. Phases 2 and 3's network view and editor are demonstrated by
+Phase 1 of the locally hosted configuration work provides the layout settings
+and persistence layer. Phases 2 through 5's network view, editor, keyboard
+navigation, and macro settings are demonstrated by
 [`SettingsPortal`](../examples/practical/SettingsPortal/).
 
 The Phase 3 API accepts a complete settings document at `PUT /api/v1/config`.
@@ -128,3 +129,28 @@ capture, it withholds keys from the normal bridge output. When polling stops,
 capture expires; any key still held remains suppressed until release so it
 cannot appear as a fresh BLE key press. The event queue is fixed at 16 entries
 and drops the oldest entry on overflow.
+
+## Text macro settings
+
+Phase 5 adds `KeyboardMacroSettings`, an independent full-table model with four
+slots. A slot is either disabled (`triggerUsage: 0`, empty text) or binds one
+unique F1-F24 key to 1-31 UTF-8 characters, with at most 124 encoded bytes.
+Invalid UTF-8, duplicate triggers, other keys, control characters other than
+Tab/newline/carriage return, and partially specified documents are rejected.
+
+`KeyboardMacroSettingsStore` uses the same alternating-record strategy as the
+layout store, but writes separate 532-byte `macro_a` / `macro_b` records in the
+`ekb` NVS namespace. Each record is versioned, padded canonically, protected by
+CRC-32, and read back before a save succeeds. Corruption of the newest record
+recovers the previous valid macro table without affecting layout settings.
+
+The complete JSON document is available at `GET /api/v1/macros` and replaced
+with `PUT /api/v1/macros`. Persistence is verified before
+`ESP32KeyBridgeConfig::clearTextMacros()` and the new table are applied. Failed
+validation leaves both active and persisted macros unchanged.
+
+Function-key triggers are consumed by the bridge and the macro text is encoded
+using the configured host layout. Use the phone's text input to edit macro
+content; the attached wired keyboard navigation channel moves between controls
+and activates buttons, but intentionally does not forward printable keys into
+browser fields while capture is active.

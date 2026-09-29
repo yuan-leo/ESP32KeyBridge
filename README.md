@@ -64,6 +64,7 @@ The only officially supported target is **ESP32-S3**.
 | USB Host input | ✅ |
 | USB Device output | ✅ |
 | BLE HID input / output | ✅ |
+| Local Wi-Fi layout / macro settings UI | ✅ |
 | Bluetooth Classic HID | — |
 
 The S3 has one native USB controller, so a design may use it as USB Host or USB Device while using BLE on the other side. Source code or historical examples for other ESP32 variants remain unsupported and outside the agreed scope.

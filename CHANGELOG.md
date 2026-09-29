@@ -1,6 +1,8 @@
 # Changelog / 変更履歴
 
 ## Unreleased
+- (EN) Add Phase 5 macro configuration: four F1-F24 text-macro slots, strict UTF-8 and versioned JSON validation, independent redundant NVS persistence with read-back verification, atomic live full-table replacement, and responsive browser editing.
+- (JA) Phase 5 の macro 設定を追加。F1-F24 を trigger にする4個の text macro slot、厳密な UTF-8 / version付き JSON 検証、独立した二重化 NVS と読戻し確認、live macro table の atomic な全置換、responsive browser 編集を実装。
 - (EN) Add Phase 4 wired-keyboard navigation for the ESP32-S3 settings page. A bounded input decorator sends Tab, arrow, activation, cancel, Home, and End actions to the browser while suppressing captured keys from the BLE host; a short polling lease releases capture safely when the page disappears.
 - (JA) Phase 4 として ESP32-S3 設定 page の有線 keyboard 操作を追加。bounded input decorator が Tab、矢印、実行、cancel、Home、End action を browser へ送り、capture key は BLE host へ流さない。短い polling lease により page 消失時も安全に capture を解除する。
 - (EN) Add Phase 3 layout editing: enumerate bundled layouts, strictly decode the complete versioned JSON document, expose one configuration `PUT`, verify redundant NVS persistence before live apply, and provide responsive browser controls with explicit save/error state.

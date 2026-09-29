@@ -1,10 +1,11 @@
-// Phase 3 bring-up for the ESP32-S3 local settings website.
+// Phase 5 bring-up for the ESP32-S3 local settings website.
 //
 // Connect a phone to the "KeyBridge-Setup" Wi-Fi network with password
 // "keybridge", then open http://192.168.4.1/. Change both credentials before
 // using this beyond local development.
 
 #include <ESP32KeyBridge.h>
+#include <ESP32KeyBridgeMacroSettings.h>
 #include <ESP32KeyBridgePreferences.h>
 #include <ESP32KeyBridgeSettings.h>
 #include <ESP32KeyBridgeWeb.h>
@@ -14,6 +15,9 @@ esp32keybridge::ESP32KeyBridgeConfig bridgeConfig;
 esp32keybridge::KeyboardLayoutSettings layoutSettings;
 esp32keybridge::PreferencesLayoutSettingsStorage settingsNvs;
 esp32keybridge::KeyboardLayoutSettingsStore settingsStore(settingsNvs);
+esp32keybridge::KeyboardMacroSettings macroSettings;
+esp32keybridge::PreferencesMacroSettingsStorage macroNvs;
+esp32keybridge::KeyboardMacroSettingsStore macroStore(macroNvs);
 esp32keybridge::Esp32S3SettingsWebServer settingsWeb(layoutSettings, bridge);
 
 namespace
@@ -51,8 +55,18 @@ void setup()
     Serial.printf("Settings detail: %s\n", settingsError.message);
   }
 
-  // Phase 1 settings are applied through the same core API the write endpoint
-  // uses. A real keyboard adapter binds to keyboardConfig.
+  esp32keybridge::MacroSettingsError macroError;
+  const esp32keybridge::MacroSettingsLoadStatus macroLoadStatus =
+      macroStore.loadOrDefault(macroSettings, &macroError);
+  Serial.printf("Macro settings load status: %u\n",
+                static_cast<unsigned>(macroLoadStatus));
+  if (macroError.message != nullptr)
+  {
+    Serial.printf("Macro settings detail: %s\n", macroError.message);
+  }
+
+  // Persisted settings are applied through the same core APIs the write
+  // endpoints use. A real keyboard adapter binds to keyboardConfig.
   esp32keybridge::InputConfig &keyboardConfig = bridgeConfig.addInputConfig();
   if (!layoutSettings.apply(bridge, bridgeConfig, keyboardConfig, &settingsError))
   {
@@ -60,9 +74,20 @@ void setup()
                   settingsError.message != nullptr ? settingsError.message : "unknown");
     return;
   }
+  if (!macroSettings.apply(bridge, bridgeConfig, &macroError))
+  {
+    Serial.printf("Macro settings apply failed: %s\n",
+                  macroError.message != nullptr ? macroError.message : "unknown");
+    return;
+  }
   if (!settingsWeb.enableEditing(settingsStore, bridgeConfig, keyboardConfig))
   {
     Serial.println("Settings editing could not be enabled");
+    return;
+  }
+  if (!settingsWeb.enableMacroEditing(macroSettings, macroStore, bridgeConfig))
+  {
+    Serial.println("Macro editing could not be enabled");
     return;
   }
 

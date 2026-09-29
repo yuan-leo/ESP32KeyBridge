@@ -4,7 +4,8 @@
 
 ESP32-S3 が host する設定 website の bring-up です。WPA2 SoftAP を起動し、
 保存済み layout 設定の編集と bridge の live status 表示ができる responsive
-な offline page を配信します。保存内容は厳密に検証し、二重化 NVS へ書いて
+な offline page を配信します。F1-F24 を trigger にする4個の text macro も
+編集できます。保存内容は厳密に検証し、二重化 NVS へ書いて
 読戻し確認を済ませてから bridge へ適用します。
 
 この単体 bring-up sketch は keyboard を接続しないため、navigation endpoint
