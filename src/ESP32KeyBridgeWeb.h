@@ -11,6 +11,7 @@
 
 #include "ESP32KeyBridgeSettings.h"
 #include "ESP32KeyBridgeSettingsJson.h"
+#include "ESP32KeyBridgeSettingsNavigation.h"
 
 namespace esp32keybridge
 {
@@ -32,7 +33,7 @@ h1{font-size:clamp(2rem,8vw,3.4rem);line-height:1;margin:.3rem 0 .8rem}.lede{col
 .status{display:inline-flex;align-items:center;gap:8px}.dot{width:10px;height:10px;border-radius:50%;background:var(--warn);box-shadow:0 0 16px var(--warn)}.dot.on{background:var(--accent);box-shadow:0 0 16px var(--accent)}
 select{width:100%;margin-top:8px;padding:11px 12px;border:1px solid var(--line);border-radius:10px;background:#111813;color:var(--text);font:inherit}label.card{display:block}.check{display:flex;align-items:center;gap:12px;margin-top:13px;font-size:1.08rem}.check input{width:20px;height:20px;accent-color:var(--accent)}
 .actions{display:flex;align-items:center;gap:14px;margin-top:18px}button{border:0;border-radius:12px;background:var(--accent);color:#0d1710;padding:12px 20px;font:700 1rem system-ui;cursor:pointer}button:disabled{opacity:.45;cursor:not-allowed}.message{color:var(--muted)}.message.error{color:#ff9f94}
-footer{color:var(--muted);font-size:.86rem;margin-top:22px}code{color:var(--accent)}
+footer{color:var(--muted);font-size:.86rem;margin-top:22px}code{color:var(--accent)}#keyboard-status{display:block;margin-top:7px}
 </style>
 </head>
 <body>
@@ -48,7 +49,7 @@ footer{color:var(--muted);font-size:.86rem;margin-top:22px}code{color:var(--acce
 </section>
 <div class="actions"><button id="save" type="submit">Save settings</button><span class="message" id="save-status" role="status"></span></div>
 </form>
-<footer>Served directly by the ESP32-S3. API: <code>/api/v1/config</code> and <code>/api/v1/status</code>.</footer>
+<footer>Served directly by the ESP32-S3. API: <code>/api/v1/config</code> and <code>/api/v1/status</code>.<span id="keyboard-status">Checking wired keyboard navigation…</span></footer>
 </main>
 <script>
 const $=id=>document.getElementById(id);
@@ -58,8 +59,13 @@ function message(text,error=false){$('save-status').textContent=text;$('save-sta
 function ensureToggle(value){const s=$('toggle');if(![...s.options].some(o=>Number(o.value)===value)){const o=document.createElement('option');o.value=value;o.textContent='HID 0x'+value.toString(16).padStart(2,'0').toUpperCase();s.append(o)}s.value=String(value)}
 async function load(){try{const [l,c]=await Promise.all([json('/api/v1/layouts'),json('/api/v1/config')]);for(const id of ['input-layout','host-layout']){const s=$(id);s.replaceChildren(...l.layouts.map(name=>{const o=document.createElement('option');o.value=name;o.textContent=name;return o}))}$('input-layout').value=c.inputLayout;$('host-layout').value=c.hostLayout;$('conversion').checked=c.layoutConversionEnabled;ensureToggle(c.layoutConversionToggleUsage);editable=!!c.editable;$('save').disabled=!editable;if(!editable)message('Read-only mode')}catch(e){editable=false;message('Configuration unavailable',true);$('save').disabled=true}}
 async function refreshStatus(){try{const s=await json('/api/v1/status');$('device-status').textContent=`Online · conversion ${s.layoutConversionEnabled?'on':'off'} · ${s.wifiClients} phone${s.wifiClients===1?'':'s'} connected${s.mergedOverflow||s.outputOverflow?' · key overflow':''}`}catch(e){$('device-status').textContent='Device disconnected'}}
+function controls(){return [...document.querySelectorAll('select,input,button')].filter(e=>!e.disabled)}
+function moveFocus(delta){const c=controls();if(!c.length)return;let i=c.indexOf(document.activeElement);if(i<0)i=delta>0?-1:0;i=(i+delta+c.length)%c.length;c[i].focus()}
+function navigate(action){const e=document.activeElement;if(action==='next'){moveFocus(1);return}if(action==='previous'){moveFocus(-1);return}if(action==='cancel'){load();return}if(!e||e===document.body){moveFocus(1);return}if(e.tagName==='SELECT'&&['up','down','left','right','home','end'].includes(action)){const last=e.options.length-1;e.selectedIndex=action==='home'?0:action==='end'?last:Math.max(0,Math.min(last,e.selectedIndex+(['up','left'].includes(action)?-1:1)));e.dispatchEvent(new Event('change'));return}if(e.type==='checkbox'){if(action==='activate')e.checked=!e.checked;else if(['up','left'].includes(action))e.checked=false;else if(['down','right'].includes(action))e.checked=true;return}if(action==='activate'){if(e.tagName==='BUTTON')e.click();else moveFocus(1);return}if(action==='home'){const c=controls();if(c.length)c[0].focus();return}if(action==='end'){const c=controls();if(c.length)c[c.length-1].focus();return}if(['up','left'].includes(action))moveFocus(-1);else if(['down','right'].includes(action))moveFocus(1)}
+let navWasAvailable=false;
+async function pollNavigation(){if(document.hidden){navWasAvailable=false;$('keyboard-status').textContent='Wired keyboard navigation paused';setTimeout(pollNavigation,250);return}try{const n=await json('/api/v1/navigation');$('keyboard-status').textContent=!n.available?'Wired keyboard navigation unavailable':n.capture?'Wired keyboard navigation active: Tab/arrows, Enter/Space, Esc':'Release all keys to start wired keyboard navigation';if(n.capture&&!navWasAvailable&&document.activeElement===document.body)moveFocus(1);navWasAvailable=!!n.capture;if(n.action&&n.action!=='none')navigate(n.action)}catch(e){navWasAvailable=false;$('keyboard-status').textContent='Wired keyboard navigation disconnected'}finally{setTimeout(pollNavigation,80)}}
 $('settings-form').addEventListener('submit',async e=>{e.preventDefault();$('save').disabled=true;message('Saving…');const body={schemaVersion:1,inputLayout:$('input-layout').value,hostLayout:$('host-layout').value,layoutConversionEnabled:$('conversion').checked,layoutConversionToggleUsage:Number($('toggle').value)};try{const r=await fetch('/api/v1/config',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});const result=await r.json();if(!r.ok)throw new Error(result.message||result.error||r.status);message('Saved and applied');await load();await refreshStatus()}catch(err){message('Save failed: '+err.message,true)}finally{$('save').disabled=!editable}});
-load();refreshStatus();setInterval(refreshStatus,1500);
+load();refreshStatus();pollNavigation();setInterval(refreshStatus,1500);
 </script>
 </body>
 </html>)HTML";
@@ -93,7 +99,8 @@ struct SettingsAccessPointConfig
 // ESP32-S3 SoftAP plus the local settings website. The sketch owns scheduling
 // and must call update() frequently from loop(). A const construction remains
 // read-only; the mutable construction plus enableEditing() adds the Phase 3
-// validated, persisted PUT endpoint. There is no keyboard-navigation channel.
+// validated, persisted PUT endpoint. Phase 4 can bind a keyboard-navigation
+// source whose capture lease is held only while the browser page is polling.
 class Esp32S3SettingsWebServer
 {
 public:
@@ -130,6 +137,16 @@ public:
   {
     return editableSettings_ != nullptr && editableBridge_ != nullptr &&
            store_ != nullptr && config_ != nullptr && inputConfig_ != nullptr;
+  }
+
+  bool enableKeyboardNavigation(SettingsNavigationSource &navigation)
+  {
+    if (started_)
+    {
+      return false;
+    }
+    navigation_ = &navigation;
+    return true;
   }
 
   bool begin(const SettingsAccessPointConfig &config,
@@ -185,6 +202,13 @@ public:
     if (started_)
     {
       server_.handleClient();
+      if (navigationLeaseActive_ &&
+          static_cast<uint32_t>(millis() - lastNavigationPollMs_) >
+              NavigationLeaseMilliseconds)
+      {
+        navigation_->setNavigationCaptureEnabled(false);
+        navigationLeaseActive_ = false;
+      }
     }
   }
 
@@ -196,6 +220,7 @@ public:
     }
     server_.stop();
     WiFi.softAPdisconnect(true);
+    releaseNavigationCapture();
     started_ = false;
   }
 
@@ -260,6 +285,7 @@ private:
     server_.on("/api/v1/config", HTTP_GET, [this]() { sendConfig(); });
     server_.on("/api/v1/config", HTTP_PUT, [this]() { updateConfig(); });
     server_.on("/api/v1/layouts", HTTP_GET, [this]() { sendLayouts(); });
+    server_.on("/api/v1/navigation", HTTP_GET, [this]() { sendNavigation(); });
     server_.on("/api/v1/status", HTTP_GET, [this]() { sendStatus(); });
     server_.on("/healthz", HTTP_GET, [this]() {
       commonHeaders();
@@ -389,6 +415,45 @@ private:
     server_.send(200, "application/json; charset=utf-8", body);
   }
 
+  void sendNavigation()
+  {
+    if (navigation_ == nullptr)
+    {
+      commonHeaders();
+      server_.send(200, "application/json; charset=utf-8",
+                   "{\"available\":false,\"capture\":false,"
+                   "\"sequence\":0,\"action\":\"none\",\"overflow\":0}\n");
+      return;
+    }
+
+    navigation_->setNavigationCaptureEnabled(true);
+    navigationLeaseActive_ = true;
+    lastNavigationPollMs_ = millis();
+    const bool captureActive = navigation_->navigationCaptureEnabled();
+    SettingsNavigationEvent event;
+    const bool haveEvent = navigation_->popNavigationEvent(event);
+    char body[192];
+    snprintf(body, sizeof(body),
+             "{\"available\":true,\"capture\":%s,\"sequence\":%lu,"
+             "\"action\":\"%s\",\"overflow\":%lu}\n",
+             captureActive ? "true" : "false",
+             static_cast<unsigned long>(haveEvent ? event.sequence : 0),
+             settingsNavigationActionName(haveEvent ? event.action
+                                                     : SettingsNavigationAction::None),
+             static_cast<unsigned long>(navigation_->navigationOverflowCount()));
+    commonHeaders();
+    server_.send(200, "application/json; charset=utf-8", body);
+  }
+
+  void releaseNavigationCapture()
+  {
+    if (navigation_ != nullptr)
+    {
+      navigation_->setNavigationCaptureEnabled(false);
+    }
+    navigationLeaseActive_ = false;
+  }
+
   const KeyboardLayoutSettings *settings_ = nullptr;
   const ESP32KeyBridge *bridge_ = nullptr;
   KeyboardLayoutSettings *editableSettings_ = nullptr;
@@ -396,9 +461,13 @@ private:
   KeyboardLayoutSettingsStore *store_ = nullptr;
   ESP32KeyBridgeConfig *config_ = nullptr;
   InputConfig *inputConfig_ = nullptr;
+  SettingsNavigationSource *navigation_ = nullptr;
   WebServer server_;
+  static constexpr uint32_t NavigationLeaseMilliseconds = 1200;
+  uint32_t lastNavigationPollMs_ = 0;
   bool handlersRegistered_ = false;
   bool started_ = false;
+  bool navigationLeaseActive_ = false;
 };
 
 } // namespace esp32keybridge

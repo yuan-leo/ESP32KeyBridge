@@ -1,6 +1,8 @@
 # Changelog / 変更履歴
 
 ## Unreleased
+- (EN) Add Phase 4 wired-keyboard navigation for the ESP32-S3 settings page. A bounded input decorator sends Tab, arrow, activation, cancel, Home, and End actions to the browser while suppressing captured keys from the BLE host; a short polling lease releases capture safely when the page disappears.
+- (JA) Phase 4 として ESP32-S3 設定 page の有線 keyboard 操作を追加。bounded input decorator が Tab、矢印、実行、cancel、Home、End action を browser へ送り、capture key は BLE host へ流さない。短い polling lease により page 消失時も安全に capture を解除する。
 - (EN) Add Phase 3 layout editing: enumerate bundled layouts, strictly decode the complete versioned JSON document, expose one configuration `PUT`, verify redundant NVS persistence before live apply, and provide responsive browser controls with explicit save/error state.
 - (JA) Phase 3 の layout 編集を追加。bundled layout 列挙、version 付き完全 JSON document の厳密 decode、単一の設定 `PUT`、live apply 前の二重化 NVS 読戻し確認、保存・error 状態を明示する browser UI を実装。
 - (EN) Add the ESP32-S3 local-configuration Phase 2 network foundation: a WPA2 SoftAP, offline read-only settings page, configuration/status JSON endpoints, security headers, and the `SettingsPortal` bring-up example.

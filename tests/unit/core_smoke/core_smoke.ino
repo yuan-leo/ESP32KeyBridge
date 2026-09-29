@@ -2,6 +2,7 @@
 #include <ESP32KeyBridgeBluetooth.h>
 #include <ESP32KeyBridgeSettings.h>
 #include <ESP32KeyBridgeSettingsJson.h>
+#include <ESP32KeyBridgeSettingsNavigation.h>
 #include <ESP32KeyBridgeSerial.h>
 #if defined(ARDUINO_ARCH_ESP32)
 #include <ESP32KeyBridgePreferences.h>
@@ -338,6 +339,119 @@ static void test_keyboard_layout_presets_enumerate_lookup_names()
              esp32keybridge::KeyboardLayout::presetCount()) == nullptr);
 }
 
+static void test_settings_navigation_captures_and_suppresses_until_release()
+{
+  esp32keybridge::ManualInputAdapter source;
+  esp32keybridge::SettingsNavigationInputAdapter navigation(source);
+  const esp32keybridge::Key a = esp32keybridge::KeyboardUsage::A;
+  const esp32keybridge::Key b = esp32keybridge::KeyboardUsage::B;
+  const esp32keybridge::Key shift = esp32keybridge::KeyboardUsage::LeftShift;
+  const esp32keybridge::Key tab = esp32keybridge::KeyboardUsage::Tab;
+
+  source.press(a);
+  navigation.update();
+  assert(navigation.keys().contains(a));
+
+  navigation.setNavigationCaptureEnabled(true);
+  navigation.update();
+  assert(!navigation.navigationCaptureEnabled());
+  assert(navigation.keys().contains(a));
+
+  source.release(a);
+  navigation.update();
+  assert(navigation.navigationCaptureEnabled());
+  assert(navigation.keys().count() == 0);
+
+  source.press(shift);
+  source.press(tab);
+  navigation.update();
+  esp32keybridge::SettingsNavigationEvent event;
+  assert(navigation.popNavigationEvent(event));
+  assert(event.sequence == 1);
+  assert(event.action == esp32keybridge::SettingsNavigationAction::Previous);
+  assert(!navigation.popNavigationEvent(event));
+
+  navigation.update();
+  assert(!navigation.popNavigationEvent(event));
+
+  source.press(esp32keybridge::KeyboardUsage::Enter);
+  navigation.update();
+  navigation.setNavigationCaptureEnabled(false);
+  assert(!navigation.popNavigationEvent(event));
+  navigation.update();
+  assert(navigation.keys().count() == 0);
+
+  source.clear();
+  navigation.update();
+  source.press(b);
+  navigation.update();
+  assert(navigation.keys().contains(b));
+}
+
+static void test_settings_navigation_actions_and_bounded_queue()
+{
+  esp32keybridge::ManualInputAdapter source;
+  esp32keybridge::SettingsNavigationInputAdapter navigation(source);
+  navigation.setNavigationCaptureEnabled(true);
+  navigation.update();
+  assert(navigation.navigationCaptureEnabled());
+
+  const esp32keybridge::KeyboardUsage usages[] = {
+      esp32keybridge::KeyboardUsage::Tab,
+      esp32keybridge::KeyboardUsage::Up,
+      esp32keybridge::KeyboardUsage::Down,
+      esp32keybridge::KeyboardUsage::Left,
+      esp32keybridge::KeyboardUsage::Right,
+      esp32keybridge::KeyboardUsage::Enter,
+      esp32keybridge::KeyboardUsage::Space,
+      esp32keybridge::KeyboardUsage::Escape,
+      esp32keybridge::KeyboardUsage::Home,
+      esp32keybridge::KeyboardUsage::End,
+  };
+  const esp32keybridge::SettingsNavigationAction actions[] = {
+      esp32keybridge::SettingsNavigationAction::Next,
+      esp32keybridge::SettingsNavigationAction::Up,
+      esp32keybridge::SettingsNavigationAction::Down,
+      esp32keybridge::SettingsNavigationAction::Left,
+      esp32keybridge::SettingsNavigationAction::Right,
+      esp32keybridge::SettingsNavigationAction::Activate,
+      esp32keybridge::SettingsNavigationAction::Activate,
+      esp32keybridge::SettingsNavigationAction::Cancel,
+      esp32keybridge::SettingsNavigationAction::Home,
+      esp32keybridge::SettingsNavigationAction::End,
+  };
+  for (size_t i = 0; i < sizeof(usages) / sizeof(usages[0]); ++i)
+  {
+    source.press(usages[i]);
+    navigation.update();
+    source.release(usages[i]);
+    navigation.update();
+  }
+
+  esp32keybridge::SettingsNavigationEvent event;
+  for (size_t i = 0; i < sizeof(actions) / sizeof(actions[0]); ++i)
+  {
+    assert(navigation.popNavigationEvent(event));
+    assert(event.action == actions[i]);
+  }
+  assert(!navigation.popNavigationEvent(event));
+
+  for (size_t i = 0; i < esp32keybridge::SettingsNavigationInputAdapter::EventCapacity + 1; ++i)
+  {
+    source.press(esp32keybridge::KeyboardUsage::Right);
+    navigation.update();
+    source.release(esp32keybridge::KeyboardUsage::Right);
+    navigation.update();
+  }
+  assert(navigation.navigationOverflowCount() == 1);
+  size_t count = 0;
+  while (navigation.popNavigationEvent(event))
+  {
+    ++count;
+  }
+  assert(count == esp32keybridge::SettingsNavigationInputAdapter::EventCapacity);
+}
+
 class FakeBluetoothTarget : public esp32keybridge::BluetoothTargetController
 {
 public:
@@ -463,6 +577,24 @@ static void test_bluetooth_status_led_restores_effective_lock_state()
   hotkeys.update();
   assert(keyboard.lockState().capsLock);
   assert(!keyboard.lockState().scrollLock); // original state restored
+}
+
+static void test_settings_navigation_precedes_bluetooth_hotkeys()
+{
+  esp32keybridge::ManualInputAdapter source;
+  esp32keybridge::SettingsNavigationInputAdapter navigation(source);
+  FakeBluetoothTarget target;
+  esp32keybridge::BluetoothHotkeyInputAdapter keyboard(navigation, target);
+
+  navigation.setNavigationCaptureEnabled(true);
+  keyboard.update(); // all-released snapshot starts capture
+  assert(navigation.navigationCaptureEnabled());
+
+  source.press(esp32keybridge::KeyboardUsage::ScrollLock);
+  source.press(esp32keybridge::KeyboardUsage::Digit2);
+  keyboard.update();
+  assert(target.selectCalls == 0);
+  assert(keyboard.keys().count() == 0);
 }
 
 static void test_key_identity_is_kind_plus_code()
@@ -2354,11 +2486,14 @@ static void runAllTests()
   run("layout_settings_json_round_trip", test_layout_settings_json_round_trip);
   run("layout_settings_json_is_strict_and_atomic", test_layout_settings_json_is_strict_and_atomic);
   run("keyboard_layout_presets_enumerate_lookup_names", test_keyboard_layout_presets_enumerate_lookup_names);
+  run("settings_navigation_captures_and_suppresses_until_release", test_settings_navigation_captures_and_suppresses_until_release);
+  run("settings_navigation_actions_and_bounded_queue", test_settings_navigation_actions_and_bounded_queue);
   run("key_identity_is_kind_plus_code", test_key_identity_is_kind_plus_code);
   run("key_converts_implicitly_from_usage_enums", test_key_converts_implicitly_from_usage_enums);
   run("bluetooth_target_hotkeys_are_consumed", test_bluetooth_target_hotkeys_are_consumed);
   run("bluetooth_hotkey_preserves_tap_and_other_chords", test_bluetooth_hotkey_preserves_tap_and_other_chords);
   run("bluetooth_status_led_restores_effective_lock_state", test_bluetooth_status_led_restores_effective_lock_state);
+  run("settings_navigation_precedes_bluetooth_hotkeys", test_settings_navigation_precedes_bluetooth_hotkeys);
   run("key_kind_names", test_key_kind_names);
   run("key_set_press_release", test_key_set_press_release);
   run("key_set_holds_mixed_kinds", test_key_set_holds_mixed_kinds);

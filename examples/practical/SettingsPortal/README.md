@@ -7,7 +7,9 @@ responsive, offline page for editing the persisted layout configuration and
 viewing live bridge status. Saves are strictly validated, written to the
 redundant NVS store, read back, and then applied to the bridge.
 
-It does not have captive-portal DNS or attached-keyboard navigation yet.
+This standalone bring-up sketch does not attach a keyboard, so its navigation
+endpoint reports unavailable. The `UsbKeyboardToBle` example binds the Phase 4
+wired-keyboard navigation adapter. Captive-portal DNS is not implemented.
 
 ## Try it
 
@@ -26,6 +28,7 @@ The page and APIs are compiled into firmware and use no internet-hosted assets:
 - `GET /api/v1/config` — persisted layout settings and edit capability
 - `PUT /api/v1/config` — validate, save, and atomically apply settings
 - `GET /api/v1/layouts` — supported layout names
+- `GET /api/v1/navigation` — renew keyboard capture and receive one action
 - `GET /api/v1/status` — live conversion, client count, and overflow status
 - `GET /healthz` — plain-text health check
 

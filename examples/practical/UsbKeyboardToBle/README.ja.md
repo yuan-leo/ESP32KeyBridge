@@ -16,6 +16,12 @@ password `keybridge` へ接続し、`http://192.168.4.1/` を開きます。保�
 二重化 NVS record の読戻し確認後に input/host layout、変換状態、toggle key
 を適用します。実運用前にこの開発用 credential を変更してください。
 
+page を開いて、押したままの key をいったん全て release すると、接続した
+有線 keyboard から local Wi-Fi 経由で操作できます。**Tab / Shift+Tab** または矢印 key で移動し、**Enter / Space**
+で実行、**Esc** で保存済み値を再読込みします。capture 中の keyboard key
+は BLE host へ送りません。page を閉じるか polling が止まると約 1.2 秒後に
+capture が自動解除され、解除時に押したままの key は release まで抑止されます。
+
 ## USB ポートは 1 つで足りる
 
 PC 側が USB ではなく Bluetooth なので、USB を使うのはキーボード側だけです。したがって USB が 1 つのチップで足ります — USB 対 USB の example(`SwapCtrlCapsLock`、`NavLayer` など)が要求する ESP32-P4 ではなく、**ESP32-S3** で動きます。

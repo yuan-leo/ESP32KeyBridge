@@ -42,6 +42,9 @@ EspBleHidHostMouseInputAdapter	KEYWORD1
 EspBleHidHostGamepadInputAdapter	KEYWORD1
 KeyboardLayoutSettings	KEYWORD1
 KeyboardLayoutSettingsStore	KEYWORD1
+SettingsNavigationInputAdapter	KEYWORD1
+SettingsNavigationSource	KEYWORD1
+SettingsNavigationAction	KEYWORD1
 PreferencesLayoutSettingsStorage	KEYWORD1
 Esp32S3SettingsWebServer	KEYWORD1
 SettingsAccessPointConfig	KEYWORD1
@@ -168,6 +171,11 @@ setLayoutConversionEnabled	KEYWORD2
 layoutConversionEnabled	KEYWORD2
 layoutConvertFailCount	KEYWORD2
 layoutConversionToggle	KEYWORD2
+enableKeyboardNavigation	KEYWORD2
+setNavigationCaptureEnabled	KEYWORD2
+navigationCaptureEnabled	KEYWORD2
+popNavigationEvent	KEYWORD2
+navigationOverflowCount	KEYWORD2
 
 MaxKeys	LITERAL1
 MaxInputs	LITERAL1

@@ -31,7 +31,7 @@ Implementation details: a Scroll Lock tap with no selector is passed through as 
 
 ## Later milestone: locally hosted configuration UI
 
-Status: **in progress (phases 1 through 3 implemented)**.
+Status: **in progress (phases 1 through 4 implemented)**.
 
 - The only supported target for this milestone is **ESP32-S3**.
 - The S3 has one USB OTG role at a time. A wired USB keyboard input therefore
@@ -51,6 +51,12 @@ Status: **in progress (phases 1 through 3 implemented)**.
   A successful update is written and read-back verified through the redundant
   NVS store before it is applied to the running bridge. Invalid requests leave
   both active and persisted settings unchanged.
+- Phase 4 lets the USB-host-connected wired keyboard navigate that page over
+  the local Wi-Fi link. Tab/Shift+Tab, arrows, Enter/Space, Escape, Home, and
+  End are transported as bounded navigation events. While the page holds its
+  short polling lease, keyboard keys are withheld from the BLE host. Capture
+  begins only after an all-released keyboard snapshot, expires automatically,
+  and keys held at expiry stay suppressed until release.
 
 - Provide a locally hosted web interface.
 - Configure keyboard-layout switching through that interface.

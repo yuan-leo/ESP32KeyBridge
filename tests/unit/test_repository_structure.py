@@ -19,6 +19,7 @@ def test_required_project_files_exist():
         "src/ESP32KeyBridgeSettings.cpp",
         "src/ESP32KeyBridgeSettingsJson.h",
         "src/ESP32KeyBridgeSettingsJson.cpp",
+        "src/ESP32KeyBridgeSettingsNavigation.h",
         "src/ESP32KeyBridgePreferences.h",
         "src/ESP32KeyBridgeWeb.h",
         "src/ESP32KeyBridgeEspBle.h",
@@ -94,6 +95,7 @@ def test_phase3_settings_portal_is_offline_and_has_one_write_endpoint():
     assert 'server_.on("/api/v1/config", HTTP_GET' in web
     assert 'server_.on("/api/v1/config", HTTP_PUT' in web
     assert 'server_.on("/api/v1/layouts", HTTP_GET' in web
+    assert 'server_.on("/api/v1/navigation", HTTP_GET' in web
     assert 'server_.on("/api/v1/status", HTTP_GET' in web
     assert 'server_.on("/healthz", HTTP_GET' in web
     assert "HTTP_POST" not in web

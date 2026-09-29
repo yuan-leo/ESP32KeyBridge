@@ -103,3 +103,28 @@ if (candidate.setInputLayoutName("en_us", &error) &&
 The host layout is a declaration of how the connected computer already
 interprets HID keys. Applying this setting does not change the operating
 system's keyboard layout.
+
+## Wired-keyboard page navigation
+
+`SettingsNavigationInputAdapter` decorates the raw keyboard input before it is
+registered with the bridge. Place it inside side-effecting decorators such as
+Bluetooth target hotkeys so captured settings keys cannot trigger them. Bind
+the same navigation object to the web server:
+
+```cpp
+SettingsNavigationInputAdapter settingsKeyboard(keyboardTransport);
+BluetoothHotkeyInputAdapter keyboard(settingsKeyboard, bluetoothTargets);
+Esp32S3SettingsWebServer settingsWeb(layoutSettings, bridge);
+
+bridge.addInput(keyboard, keyboardConfig);
+settingsWeb.enableKeyboardNavigation(settingsKeyboard);
+```
+
+The page polls `GET /api/v1/navigation` while open. Each successful poll renews
+a 1.2-second capture lease and receives at most one queued navigation action.
+Capture starts only after the adapter observes that every key has been
+released, avoiding a mid-chord transition in downstream decorators. During
+capture, it withholds keys from the normal bridge output. When polling stops,
+capture expires; any key still held remains suppressed until release so it
+cannot appear as a fresh BLE key press. The event queue is fixed at 16 entries
+and drops the oldest entry on overflow.

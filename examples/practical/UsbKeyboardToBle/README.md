@@ -17,6 +17,13 @@ The ESP32-S3 also hosts the layout-settings page. Connect a phone to
 input/host layouts, conversion state, and toggle key are applied. Change these
 development credentials before deploying a device.
 
+After releasing any keys already held, the attached wired keyboard controls the
+open page over the local Wi-Fi connection: use **Tab / Shift+Tab** or the arrow keys to move,
+**Enter / Space** to activate, and **Esc** to reload the saved values. Keyboard
+keys are withheld from the BLE host during this capture. If the page closes or
+stops polling, capture expires automatically after about 1.2 seconds; keys
+that were held at expiry remain suppressed until released.
+
 ## Only one USB port is needed
 
 The PC side is Bluetooth, not USB, so only the keyboard side uses USB. That means a single-USB chip is enough — an **ESP32-S3**, not the ESP32-P4 the USB-to-USB examples (`SwapCtrlCapsLock`, `NavLayer`, ...) require.

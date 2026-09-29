@@ -26,6 +26,7 @@
 #include <ESP32KeyBridgeEspUsbHost.h>
 #include <ESP32KeyBridgePreferences.h>
 #include <ESP32KeyBridgeSettings.h>
+#include <ESP32KeyBridgeSettingsNavigation.h>
 #include <ESP32KeyBridgeWeb.h>
 #include <EspBle.h>
 #include <EspUsbHost.h>
@@ -36,7 +37,8 @@ EspBle ble;         // PC / phone side
 esp32keybridge::ESP32KeyBridge bridge;
 esp32keybridge::EspUsbHostKeyboardInputAdapter rawKeyboard(usbHost);
 esp32keybridge::EspBleHidTargetController bluetoothTargets(ble);
-esp32keybridge::BluetoothHotkeyInputAdapter keyboard(rawKeyboard, bluetoothTargets);
+esp32keybridge::SettingsNavigationInputAdapter settingsKeyboard(rawKeyboard);
+esp32keybridge::BluetoothHotkeyInputAdapter keyboard(settingsKeyboard, bluetoothTargets);
 esp32keybridge::EspBleHidOutputAdapter host(ble);
 esp32keybridge::ESP32KeyBridgeConfig bridgeConfig;
 esp32keybridge::KeyboardLayoutSettings layoutSettings;
@@ -103,6 +105,11 @@ void setup()
   if (!settingsWeb.enableEditing(settingsStore, bridgeConfig, keyboardConfig))
   {
     Serial.println("Settings editing could not be enabled");
+    return;
+  }
+  if (!settingsWeb.enableKeyboardNavigation(settingsKeyboard))
+  {
+    Serial.println("Settings keyboard navigation could not be enabled");
     return;
   }
   esp32keybridge::SettingsAccessPointConfig accessPoint;
