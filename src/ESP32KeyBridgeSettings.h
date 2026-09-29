@@ -24,6 +24,10 @@ enum class LayoutSettingsErrorCode : uint8_t
   StorageReadFailed,
   StorageWriteFailed,
   StorageVerifyFailed,
+  InvalidJson,
+  MissingJsonField,
+  DuplicateJsonField,
+  UnknownJsonField,
 };
 
 struct LayoutSettingsError

@@ -171,6 +171,29 @@ KeyboardLayout KeyboardLayout::byName(const char *name, bool *found)
   return enUs();
 }
 
+size_t KeyboardLayout::presetCount()
+{
+  return 2 + sizeof(kGeneratedLayouts) / sizeof(kGeneratedLayouts[0]);
+}
+
+const char *KeyboardLayout::presetName(size_t index)
+{
+  if (index == 0)
+  {
+    return "en_us";
+  }
+  if (index == 1)
+  {
+    return "ja_jp";
+  }
+  index -= 2;
+  if (index >= sizeof(kGeneratedLayouts) / sizeof(kGeneratedLayouts[0]))
+  {
+    return nullptr;
+  }
+  return kGeneratedLayouts[index].name;
+}
+
 bool KeyboardLayout::encode(char32_t codepoint, KeyStroke &stroke) const
 {
   if (codepoint == 0)

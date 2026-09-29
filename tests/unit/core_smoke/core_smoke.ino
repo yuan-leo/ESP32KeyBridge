@@ -1,6 +1,7 @@
 #include <ESP32KeyBridge.h>
 #include <ESP32KeyBridgeBluetooth.h>
 #include <ESP32KeyBridgeSettings.h>
+#include <ESP32KeyBridgeSettingsJson.h>
 #include <ESP32KeyBridgeSerial.h>
 #if defined(ARDUINO_ARCH_ESP32)
 #include <ESP32KeyBridgePreferences.h>
@@ -238,6 +239,103 @@ static void test_layout_settings_store_does_not_write_after_read_error()
   assert(!store.save(settings, &error));
   assert(error.code == esp32keybridge::LayoutSettingsErrorCode::StorageReadFailed);
   assert(!storage.present[0] && !storage.present[1]);
+}
+
+static void test_layout_settings_json_round_trip()
+{
+  const char json[] =
+      "{\"hostLayout\":\"ja_jp\",\"schemaVersion\":1,"
+      "\"layoutConversionToggleUsage\":72,\"inputLayout\":\"en_us\","
+      "\"layoutConversionEnabled\":true}";
+  esp32keybridge::KeyboardLayoutSettings settings;
+  esp32keybridge::LayoutSettingsError error;
+  assert(esp32keybridge::decodeKeyboardLayoutSettingsJson(
+      json, std::strlen(json), settings, &error));
+  assert(std::strcmp(settings.inputLayoutName(), "en_us") == 0);
+  assert(std::strcmp(settings.hostLayoutName(), "ja_jp") == 0);
+  assert(settings.layoutConversionEnabled());
+  assert(settings.layoutConversionToggleUsage() == 72);
+
+  char encoded[256] = {};
+  assert(esp32keybridge::encodeKeyboardLayoutSettingsJson(
+             settings, encoded, sizeof(encoded), &error) > 0);
+  esp32keybridge::KeyboardLayoutSettings decoded;
+  assert(esp32keybridge::decodeKeyboardLayoutSettingsJson(
+      encoded, std::strlen(encoded), decoded, &error));
+  assert(decoded == settings);
+}
+
+static void test_layout_settings_json_is_strict_and_atomic()
+{
+  esp32keybridge::KeyboardLayoutSettings settings;
+  assert(settings.setHostLayoutName("de_de"));
+  const esp32keybridge::KeyboardLayoutSettings before = settings;
+  esp32keybridge::LayoutSettingsError error;
+
+  const char missing[] =
+      "{\"schemaVersion\":1,\"inputLayout\":\"en_us\","
+      "\"hostLayout\":\"ja_jp\",\"layoutConversionEnabled\":true}";
+  assert(!esp32keybridge::decodeKeyboardLayoutSettingsJson(
+      missing, std::strlen(missing), settings, &error));
+  assert(error.code == esp32keybridge::LayoutSettingsErrorCode::MissingJsonField);
+  assert(settings == before);
+
+  const char duplicate[] =
+      "{\"schemaVersion\":1,\"schemaVersion\":1,"
+      "\"inputLayout\":\"en_us\",\"hostLayout\":\"ja_jp\","
+      "\"layoutConversionEnabled\":true,\"layoutConversionToggleUsage\":72}";
+  assert(!esp32keybridge::decodeKeyboardLayoutSettingsJson(
+      duplicate, std::strlen(duplicate), settings, &error));
+  assert(error.code == esp32keybridge::LayoutSettingsErrorCode::DuplicateJsonField);
+
+  const char trailingComma[] =
+      "{\"schemaVersion\":1,\"inputLayout\":\"en_us\","
+      "\"hostLayout\":\"ja_jp\",\"layoutConversionEnabled\":true,"
+      "\"layoutConversionToggleUsage\":72,}";
+  assert(!esp32keybridge::decodeKeyboardLayoutSettingsJson(
+      trailingComma, std::strlen(trailingComma), settings, &error));
+  assert(error.code == esp32keybridge::LayoutSettingsErrorCode::InvalidJson);
+
+  const char leadingZero[] =
+      "{\"schemaVersion\":01,\"inputLayout\":\"en_us\","
+      "\"hostLayout\":\"ja_jp\",\"layoutConversionEnabled\":true,"
+      "\"layoutConversionToggleUsage\":72}";
+  assert(!esp32keybridge::decodeKeyboardLayoutSettingsJson(
+      leadingZero, std::strlen(leadingZero), settings, &error));
+  assert(error.code == esp32keybridge::LayoutSettingsErrorCode::InvalidJson);
+
+  const char unknownLayout[] =
+      "{\"schemaVersion\":1,\"inputLayout\":\"zz_zz\","
+      "\"hostLayout\":\"ja_jp\",\"layoutConversionEnabled\":true,"
+      "\"layoutConversionToggleUsage\":72}";
+  assert(!esp32keybridge::decodeKeyboardLayoutSettingsJson(
+      unknownLayout, std::strlen(unknownLayout), settings, &error));
+  assert(error.code == esp32keybridge::LayoutSettingsErrorCode::InvalidInputLayout);
+  assert(settings == before);
+}
+
+static void test_keyboard_layout_presets_enumerate_lookup_names()
+{
+  assert(esp32keybridge::KeyboardLayout::presetCount() == 16);
+  bool sawEnUs = false;
+  bool sawJaJp = false;
+  bool sawDeDe = false;
+  for (size_t i = 0; i < esp32keybridge::KeyboardLayout::presetCount(); ++i)
+  {
+    const char *name = esp32keybridge::KeyboardLayout::presetName(i);
+    assert(name != nullptr);
+    bool found = false;
+    const esp32keybridge::KeyboardLayout layout =
+        esp32keybridge::KeyboardLayout::byName(name, &found);
+    assert(found);
+    assert(std::strcmp(layout.name(), name) == 0);
+    sawEnUs = sawEnUs || std::strcmp(name, "en_us") == 0;
+    sawJaJp = sawJaJp || std::strcmp(name, "ja_jp") == 0;
+    sawDeDe = sawDeDe || std::strcmp(name, "de_de") == 0;
+  }
+  assert(sawEnUs && sawJaJp && sawDeDe);
+  assert(esp32keybridge::KeyboardLayout::presetName(
+             esp32keybridge::KeyboardLayout::presetCount()) == nullptr);
 }
 
 class FakeBluetoothTarget : public esp32keybridge::BluetoothTargetController
@@ -2253,6 +2351,9 @@ static void runAllTests()
   run("layout_settings_store_defaults_and_round_trip", test_layout_settings_store_defaults_and_round_trip);
   run("layout_settings_store_recovers_previous_record", test_layout_settings_store_recovers_previous_record);
   run("layout_settings_store_does_not_write_after_read_error", test_layout_settings_store_does_not_write_after_read_error);
+  run("layout_settings_json_round_trip", test_layout_settings_json_round_trip);
+  run("layout_settings_json_is_strict_and_atomic", test_layout_settings_json_is_strict_and_atomic);
+  run("keyboard_layout_presets_enumerate_lookup_names", test_keyboard_layout_presets_enumerate_lookup_names);
   run("key_identity_is_kind_plus_code", test_key_identity_is_kind_plus_code);
   run("key_converts_implicitly_from_usage_enums", test_key_converts_implicitly_from_usage_enums);
   run("bluetooth_target_hotkeys_are_consumed", test_bluetooth_target_hotkeys_are_consumed);

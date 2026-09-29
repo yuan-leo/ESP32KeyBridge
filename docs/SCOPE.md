@@ -31,7 +31,7 @@ Implementation details: a Scroll Lock tap with no selector is passed through as 
 
 ## Later milestone: locally hosted configuration UI
 
-Status: **in progress (phases 1 and 2 implemented)**.
+Status: **in progress (phases 1 through 3 implemented)**.
 
 - The only supported target for this milestone is **ESP32-S3**.
 - The S3 has one USB OTG role at a time. A wired USB keyboard input therefore
@@ -46,14 +46,20 @@ Status: **in progress (phases 1 and 2 implemented)**.
 - Phase 2 provides an ESP32-S3 WPA2 SoftAP, an offline read-only settings page,
   and versioned `GET` endpoints for configuration and live status. It does not
   expose mutation endpoints, captive-portal DNS, or keyboard navigation.
+- Phase 3 adds a strict versioned JSON settings decoder, a single
+  `PUT /api/v1/config` mutation endpoint, layout discovery, and the editing UI.
+  A successful update is written and read-back verified through the redundant
+  NVS store before it is applied to the running bridge. Invalid requests leave
+  both active and persisted settings unchanged.
 
 - Provide a locally hosted web interface.
 - Configure keyboard-layout switching through that interface.
 - Configure macros through that interface.
 
-The website hosting mechanism, authentication model, and network transport are
-not yet specified and are not implicitly added to scope. Macro persistence is
-also not part of the phase 1 layout-settings record.
+The current development portal uses an ESP32-S3 WPA2 SoftAP with fixed example
+credentials. Production credential provisioning, captive-portal behavior, and
+an authentication model beyond WPA2 are not yet specified. Macro persistence
+is also not part of the layout-settings record.
 
 ## Explicitly not inferred
 

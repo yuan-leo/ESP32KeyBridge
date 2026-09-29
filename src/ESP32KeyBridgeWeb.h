@@ -10,6 +10,7 @@
 #include <WiFi.h>
 
 #include "ESP32KeyBridgeSettings.h"
+#include "ESP32KeyBridgeSettingsJson.h"
 
 namespace esp32keybridge
 {
@@ -29,27 +30,36 @@ h1{font-size:clamp(2rem,8vw,3.4rem);line-height:1;margin:.3rem 0 .8rem}.lede{col
 .card{background:color-mix(in srgb,var(--panel) 94%,transparent);border:1px solid var(--line);border-radius:18px;padding:20px;box-shadow:0 16px 50px #0004}.wide{grid-column:1/-1}
 .label{color:var(--muted);font-size:.78rem;letter-spacing:.09em;text-transform:uppercase}.value{font-size:1.45rem;font-weight:650;margin-top:6px;word-break:break-word}
 .status{display:inline-flex;align-items:center;gap:8px}.dot{width:10px;height:10px;border-radius:50%;background:var(--warn);box-shadow:0 0 16px var(--warn)}.dot.on{background:var(--accent);box-shadow:0 0 16px var(--accent)}
+select{width:100%;margin-top:8px;padding:11px 12px;border:1px solid var(--line);border-radius:10px;background:#111813;color:var(--text);font:inherit}label.card{display:block}.check{display:flex;align-items:center;gap:12px;margin-top:13px;font-size:1.08rem}.check input{width:20px;height:20px;accent-color:var(--accent)}
+.actions{display:flex;align-items:center;gap:14px;margin-top:18px}button{border:0;border-radius:12px;background:var(--accent);color:#0d1710;padding:12px 20px;font:700 1rem system-ui;cursor:pointer}button:disabled{opacity:.45;cursor:not-allowed}.message{color:var(--muted)}.message.error{color:#ff9f94}
 footer{color:var(--muted);font-size:.86rem;margin-top:22px}code{color:var(--accent)}
 </style>
 </head>
 <body>
 <main>
-<header><div class="eyebrow">Local device settings</div><h1>ESP32 KeyBridge</h1><p class="lede">This phase is read-only. It confirms that your phone can reach the S3 and shows the active persisted keyboard-layout settings.</p></header>
-<section class="grid" aria-live="polite">
-<article class="card"><div class="label">Keyboard layout</div><div class="value" id="input-layout">Loading…</div></article>
-<article class="card"><div class="label">Host layout</div><div class="value" id="host-layout">Loading…</div></article>
-<article class="card"><div class="label">Layout conversion</div><div class="value status"><span class="dot" id="conversion-dot"></span><span id="conversion">Loading…</span></div></article>
-<article class="card"><div class="label">Toggle HID usage</div><div class="value" id="toggle">Loading…</div></article>
+<header><div class="eyebrow">Local device settings</div><h1>ESP32 KeyBridge</h1><p class="lede">Choose how the attached keyboard is engraved and how the connected host interprets keys. Saving verifies the new NVS record before applying it.</p></header>
+<form id="settings-form">
+<section class="grid">
+<label class="card"><span class="label">Keyboard layout</span><select id="input-layout" required></select></label>
+<label class="card"><span class="label">Host layout</span><select id="host-layout" required></select></label>
+<label class="card"><span class="label">Layout conversion</span><span class="check"><input id="conversion" type="checkbox">Start enabled</span></label>
+<label class="card"><span class="label">Toggle key</span><select id="toggle"><option value="0">Disabled</option><option value="72">Pause</option><option value="71">Scroll Lock</option><option value="69">F12</option></select></label>
 <article class="card wide"><div class="label">Device status</div><div class="value" id="device-status">Connecting…</div></article>
 </section>
+<div class="actions"><button id="save" type="submit">Save settings</button><span class="message" id="save-status" role="status"></span></div>
+</form>
 <footer>Served directly by the ESP32-S3. API: <code>/api/v1/config</code> and <code>/api/v1/status</code>.</footer>
 </main>
 <script>
 const $=id=>document.getElementById(id);
+let editable=false;
 async function json(path){const r=await fetch(path,{cache:'no-store'});if(!r.ok)throw new Error(r.status);return r.json()}
-async function refreshConfig(){try{const c=await json('/api/v1/config');$('input-layout').textContent=c.inputLayout;$('host-layout').textContent=c.hostLayout;$('toggle').textContent='0x'+c.layoutConversionToggleUsage.toString(16).padStart(2,'0').toUpperCase()}catch(e){$('device-status').textContent='Configuration unavailable'}}
-async function refreshStatus(){try{const s=await json('/api/v1/status');$('conversion').textContent=s.layoutConversionEnabled?'Enabled':'Disabled';$('conversion-dot').classList.toggle('on',s.layoutConversionEnabled);$('device-status').textContent=`Online · ${s.wifiClients} phone${s.wifiClients===1?'':'s'} connected${s.mergedOverflow||s.outputOverflow?' · key overflow':''}`}catch(e){$('device-status').textContent='Device disconnected'}}
-refreshConfig();refreshStatus();setInterval(refreshStatus,1500);
+function message(text,error=false){$('save-status').textContent=text;$('save-status').classList.toggle('error',error)}
+function ensureToggle(value){const s=$('toggle');if(![...s.options].some(o=>Number(o.value)===value)){const o=document.createElement('option');o.value=value;o.textContent='HID 0x'+value.toString(16).padStart(2,'0').toUpperCase();s.append(o)}s.value=String(value)}
+async function load(){try{const [l,c]=await Promise.all([json('/api/v1/layouts'),json('/api/v1/config')]);for(const id of ['input-layout','host-layout']){const s=$(id);s.replaceChildren(...l.layouts.map(name=>{const o=document.createElement('option');o.value=name;o.textContent=name;return o}))}$('input-layout').value=c.inputLayout;$('host-layout').value=c.hostLayout;$('conversion').checked=c.layoutConversionEnabled;ensureToggle(c.layoutConversionToggleUsage);editable=!!c.editable;$('save').disabled=!editable;if(!editable)message('Read-only mode')}catch(e){editable=false;message('Configuration unavailable',true);$('save').disabled=true}}
+async function refreshStatus(){try{const s=await json('/api/v1/status');$('device-status').textContent=`Online · conversion ${s.layoutConversionEnabled?'on':'off'} · ${s.wifiClients} phone${s.wifiClients===1?'':'s'} connected${s.mergedOverflow||s.outputOverflow?' · key overflow':''}`}catch(e){$('device-status').textContent='Device disconnected'}}
+$('settings-form').addEventListener('submit',async e=>{e.preventDefault();$('save').disabled=true;message('Saving…');const body={schemaVersion:1,inputLayout:$('input-layout').value,hostLayout:$('host-layout').value,layoutConversionEnabled:$('conversion').checked,layoutConversionToggleUsage:Number($('toggle').value)};try{const r=await fetch('/api/v1/config',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});const result=await r.json();if(!r.ok)throw new Error(result.message||result.error||r.status);message('Saved and applied');await load();await refreshStatus()}catch(err){message('Save failed: '+err.message,true)}finally{$('save').disabled=!editable}});
+load();refreshStatus();setInterval(refreshStatus,1500);
 </script>
 </body>
 </html>)HTML";
@@ -80,16 +90,46 @@ struct SettingsAccessPointConfig
   uint8_t maxConnections = 1;
 };
 
-// ESP32-S3 SoftAP plus a small read-only settings website. The sketch owns
-// scheduling and must call update() frequently from loop(). Phase 2 has no
-// mutation endpoints, captive portal, or keyboard-navigation channel.
+// ESP32-S3 SoftAP plus the local settings website. The sketch owns scheduling
+// and must call update() frequently from loop(). A const construction remains
+// read-only; the mutable construction plus enableEditing() adds the Phase 3
+// validated, persisted PUT endpoint. There is no keyboard-navigation channel.
 class Esp32S3SettingsWebServer
 {
 public:
   Esp32S3SettingsWebServer(const KeyboardLayoutSettings &settings,
                            const ESP32KeyBridge &bridge, uint16_t port = 80)
-      : settings_(settings), bridge_(bridge), server_(port)
+      : settings_(&settings), bridge_(&bridge), server_(port)
   {
+  }
+
+  Esp32S3SettingsWebServer(KeyboardLayoutSettings &settings,
+                           ESP32KeyBridge &bridge, uint16_t port = 80)
+      : settings_(&settings), bridge_(&bridge), editableSettings_(&settings),
+        editableBridge_(&bridge), server_(port)
+  {
+  }
+
+  // The referenced objects must outlive this server. Because request handling
+  // occurs inside update(), save/apply runs in the same context as the
+  // sketch's bridge.update() call rather than a Wi-Fi task.
+  bool enableEditing(KeyboardLayoutSettingsStore &store,
+                     ESP32KeyBridgeConfig &config, InputConfig &inputConfig)
+  {
+    if (editableSettings_ == nullptr || editableBridge_ == nullptr || started_)
+    {
+      return false;
+    }
+    store_ = &store;
+    config_ = &config;
+    inputConfig_ = &inputConfig;
+    return true;
+  }
+
+  bool editingEnabled() const
+  {
+    return editableSettings_ != nullptr && editableBridge_ != nullptr &&
+           store_ != nullptr && config_ != nullptr && inputConfig_ != nullptr;
   }
 
   bool begin(const SettingsAccessPointConfig &config,
@@ -218,6 +258,8 @@ private:
                      detail::kSettingsIndexHtml);
     });
     server_.on("/api/v1/config", HTTP_GET, [this]() { sendConfig(); });
+    server_.on("/api/v1/config", HTTP_PUT, [this]() { updateConfig(); });
+    server_.on("/api/v1/layouts", HTTP_GET, [this]() { sendLayouts(); });
     server_.on("/api/v1/status", HTTP_GET, [this]() { sendStatus(); });
     server_.on("/healthz", HTTP_GET, [this]() {
       commonHeaders();
@@ -236,13 +278,101 @@ private:
     snprintf(body, sizeof(body),
              "{\"schemaVersion\":%lu,\"inputLayout\":\"%s\","
              "\"hostLayout\":\"%s\",\"layoutConversionEnabled\":%s,"
-             "\"layoutConversionToggleUsage\":%u}\n",
+             "\"layoutConversionToggleUsage\":%u,\"editable\":%s}\n",
              static_cast<unsigned long>(KeyboardLayoutSettings::CurrentVersion),
-             settings_.inputLayoutName(), settings_.hostLayoutName(),
-             settings_.layoutConversionEnabled() ? "true" : "false",
-             static_cast<unsigned>(settings_.layoutConversionToggleUsage()));
+             settings_->inputLayoutName(), settings_->hostLayoutName(),
+             settings_->layoutConversionEnabled() ? "true" : "false",
+             static_cast<unsigned>(settings_->layoutConversionToggleUsage()),
+             editingEnabled() ? "true" : "false");
     commonHeaders();
     server_.send(200, "application/json; charset=utf-8", body);
+  }
+
+  void sendLayouts()
+  {
+    char body[256] = {};
+    size_t used = static_cast<size_t>(snprintf(body, sizeof(body), "{\"layouts\":["));
+    for (size_t i = 0; i < KeyboardLayout::presetCount() && used < sizeof(body); ++i)
+    {
+      const char *name = KeyboardLayout::presetName(i);
+      const int added = snprintf(body + used, sizeof(body) - used,
+                                 "%s\"%s\"", i == 0 ? "" : ",", name);
+      if (added < 0 || static_cast<size_t>(added) >= sizeof(body) - used)
+      {
+        sendApiError(500, "internal_error", nullptr,
+                     "layout registry response is too large");
+        return;
+      }
+      used += static_cast<size_t>(added);
+    }
+    if (snprintf(body + used, sizeof(body) - used, "]}\n") >=
+        static_cast<int>(sizeof(body) - used))
+    {
+      sendApiError(500, "internal_error", nullptr,
+                   "layout registry response is too large");
+      return;
+    }
+    commonHeaders();
+    server_.send(200, "application/json; charset=utf-8", body);
+  }
+
+  void updateConfig()
+  {
+    if (!editingEnabled())
+    {
+      sendApiError(405, "read_only", nullptr,
+                   "configuration editing is not enabled");
+      return;
+    }
+
+    const String &requestBody = server_.arg("plain");
+    if (requestBody.length() == 0 || requestBody.length() > 512)
+    {
+      sendApiError(requestBody.length() > 512 ? 413 : 400, "invalid_request",
+                   "json", "request body must contain at most 512 bytes");
+      return;
+    }
+
+    KeyboardLayoutSettings candidate;
+    LayoutSettingsError error;
+    if (!decodeKeyboardLayoutSettingsJson(requestBody.c_str(), requestBody.length(),
+                                          candidate, &error))
+    {
+      sendApiError(400, "invalid_settings", error.field, error.message);
+      return;
+    }
+
+    const KeyboardLayoutSettings previous = *editableSettings_;
+    if (!store_->save(candidate, &error))
+    {
+      sendApiError(500, "storage_failed", error.field, error.message);
+      return;
+    }
+
+    *editableSettings_ = candidate;
+    if (!editableSettings_->apply(*editableBridge_, *config_, *inputConfig_, &error))
+    {
+      *editableSettings_ = previous;
+      LayoutSettingsError rollbackError;
+      store_->save(previous, &rollbackError);
+      previous.apply(*editableBridge_, *config_, *inputConfig_, &rollbackError);
+      sendApiError(500, "apply_failed", error.field, error.message);
+      return;
+    }
+
+    sendConfig();
+  }
+
+  void sendApiError(int status, const char *code, const char *field,
+                    const char *message)
+  {
+    char body[320];
+    snprintf(body, sizeof(body),
+             "{\"error\":\"%s\",\"field\":\"%s\",\"message\":\"%s\"}\n",
+             code != nullptr ? code : "error", field != nullptr ? field : "",
+             message != nullptr ? message : "request failed");
+    commonHeaders();
+    server_.send(status, "application/json; charset=utf-8", body);
   }
 
   void sendStatus()
@@ -251,16 +381,21 @@ private:
     snprintf(body, sizeof(body),
              "{\"layoutConversionEnabled\":%s,\"wifiClients\":%u,"
              "\"mergedOverflow\":%s,\"outputOverflow\":%s}\n",
-             bridge_.layoutConversionEnabled() ? "true" : "false",
+             bridge_->layoutConversionEnabled() ? "true" : "false",
              static_cast<unsigned>(connectedClients()),
-             bridge_.mergedOverflow() ? "true" : "false",
-             bridge_.outputOverflow() ? "true" : "false");
+             bridge_->mergedOverflow() ? "true" : "false",
+             bridge_->outputOverflow() ? "true" : "false");
     commonHeaders();
     server_.send(200, "application/json; charset=utf-8", body);
   }
 
-  const KeyboardLayoutSettings &settings_;
-  const ESP32KeyBridge &bridge_;
+  const KeyboardLayoutSettings *settings_ = nullptr;
+  const ESP32KeyBridge *bridge_ = nullptr;
+  KeyboardLayoutSettings *editableSettings_ = nullptr;
+  ESP32KeyBridge *editableBridge_ = nullptr;
+  KeyboardLayoutSettingsStore *store_ = nullptr;
+  ESP32KeyBridgeConfig *config_ = nullptr;
+  InputConfig *inputConfig_ = nullptr;
   WebServer server_;
   bool handlersRegistered_ = false;
   bool started_ = false;

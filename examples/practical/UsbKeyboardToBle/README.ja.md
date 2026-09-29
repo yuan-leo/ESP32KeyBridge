@@ -9,6 +9,13 @@
 - lock 状態は Bluetooth ホストが正本です。ホストの LED output report を受け取り、bridge が USB キーボードの LED へ転送します。キーボードで Caps Lock を押したときの LED は推測ではなくホストに追従します。
 - **Scroll Lock** を押しながら上段の **1**、**2**、**3** を押すと、その slot に bond 済みの host へ切り替えます。**Scroll Lock + 0** で選択中 slot を入れ替える pairing mode に入ります。切替 / pairing 中は Scroll Lock LED が点滅し、終了後は host の本来の Scroll Lock 状態へ戻ります。
 
+## local layout 設定
+
+ESP32-S3 は layout 設定 page も host します。phone を `KeyBridge-Setup`、
+password `keybridge` へ接続し、`http://192.168.4.1/` を開きます。保存時は
+二重化 NVS record の読戻し確認後に input/host layout、変換状態、toggle key
+を適用します。実運用前にこの開発用 credential を変更してください。
+
 ## USB ポートは 1 つで足りる
 
 PC 側が USB ではなく Bluetooth なので、USB を使うのはキーボード側だけです。したがって USB が 1 つのチップで足ります — USB 対 USB の example(`SwapCtrlCapsLock`、`NavLayer` など)が要求する ESP32-P4 ではなく、**ESP32-S3** で動きます。
@@ -17,6 +24,7 @@ PC 側が USB ではなく Bluetooth なので、USB を使うのはキーボー
 
 - キーボードを ESP32-S3 のネイティブ USB ポートに挿します(USB Host として読みます)。キーボードへのバス電源供給が必要なので、USB-A ホストコネクタ付きのボードか、USB-OTG ケーブル + 外部 5V を使います。
 - ボード自体は UART ポートまたはバッテリから給電します。UART0 のシリアルコンソールに BLE の状態が出ます。
+- 手動 build では partition scheme に **Minimal SPIFFS (1.9MB APP with OTA)** を選択してください。example の `sketch.yaml` は自動で選択します。USB Host、BLE、Wi-Fi を組み合わせた firmware は default の 1.25MB app partition には収まりません。
 
 ## ペアリング
 
@@ -27,5 +35,5 @@ PC 側が USB ではなく Bluetooth なので、USB を使うのはキーボー
 EspBle は `ble.update()` を呼んだコンテキストからコールバックを配送します。したがって `bridge.update()` と同じ `loop()` に置き、届いたばかりの report を同じサイクルに含めるために **先に** 呼びます:
 
 ```cpp
-void loop() { ble.update(); bridge.update(); delay(1); }
+void loop() { ble.update(); bridge.update(); settingsWeb.update(); delay(1); }
 ```

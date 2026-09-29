@@ -1,8 +1,8 @@
-// Phase 2 bring-up for the ESP32-S3 local settings website.
+// Phase 3 bring-up for the ESP32-S3 local settings website.
 //
 // Connect a phone to the "KeyBridge-Setup" Wi-Fi network with password
-// "keybridge", then open http://192.168.4.1/. The page is read-only in this
-// phase. Change both credentials before using this beyond local development.
+// "keybridge", then open http://192.168.4.1/. Change both credentials before
+// using this beyond local development.
 
 #include <ESP32KeyBridge.h>
 #include <ESP32KeyBridgePreferences.h>
@@ -51,13 +51,18 @@ void setup()
     Serial.printf("Settings detail: %s\n", settingsError.message);
   }
 
-  // Phase 1 settings are applied through the same core API the later write
-  // endpoint will use. A real keyboard adapter binds to keyboardConfig.
+  // Phase 1 settings are applied through the same core API the write endpoint
+  // uses. A real keyboard adapter binds to keyboardConfig.
   esp32keybridge::InputConfig &keyboardConfig = bridgeConfig.addInputConfig();
   if (!layoutSettings.apply(bridge, bridgeConfig, keyboardConfig, &settingsError))
   {
     Serial.printf("Settings apply failed: %s\n",
                   settingsError.message != nullptr ? settingsError.message : "unknown");
+    return;
+  }
+  if (!settingsWeb.enableEditing(settingsStore, bridgeConfig, keyboardConfig))
+  {
+    Serial.println("Settings editing could not be enabled");
     return;
   }
 

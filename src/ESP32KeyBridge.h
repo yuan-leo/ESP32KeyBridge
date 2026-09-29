@@ -539,6 +539,10 @@ public:
   // Lookup by locale name ("en_us", "ja_jp", "de_de"). Returns en_us when
   // unknown and sets *found to false if provided.
   static KeyboardLayout byName(const char *name, bool *found = nullptr);
+  // Enumerates every layout accepted by byName(). presetName() returns
+  // nullptr when index is out of range.
+  static size_t presetCount();
+  static const char *presetName(size_t index);
 
   // Encodes a printable character. Returns false when this layout cannot
   // type the character. Control characters are handled by the typing engine.

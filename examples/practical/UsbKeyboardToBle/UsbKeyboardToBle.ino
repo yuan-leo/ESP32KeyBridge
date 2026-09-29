@@ -24,6 +24,9 @@
 #include <ESP32KeyBridge.h>
 #include <ESP32KeyBridgeEspBle.h>
 #include <ESP32KeyBridgeEspUsbHost.h>
+#include <ESP32KeyBridgePreferences.h>
+#include <ESP32KeyBridgeSettings.h>
+#include <ESP32KeyBridgeWeb.h>
 #include <EspBle.h>
 #include <EspUsbHost.h>
 
@@ -35,6 +38,11 @@ esp32keybridge::EspUsbHostKeyboardInputAdapter rawKeyboard(usbHost);
 esp32keybridge::EspBleHidTargetController bluetoothTargets(ble);
 esp32keybridge::BluetoothHotkeyInputAdapter keyboard(rawKeyboard, bluetoothTargets);
 esp32keybridge::EspBleHidOutputAdapter host(ble);
+esp32keybridge::ESP32KeyBridgeConfig bridgeConfig;
+esp32keybridge::KeyboardLayoutSettings layoutSettings;
+esp32keybridge::PreferencesLayoutSettingsStorage settingsNvs;
+esp32keybridge::KeyboardLayoutSettingsStore settingsStore(settingsNvs);
+esp32keybridge::Esp32S3SettingsWebServer settingsWeb(layoutSettings, bridge);
 
 void setup()
 {
@@ -58,20 +66,60 @@ void setup()
   ble.advertising().setName(bleConfig.deviceName);
   ble.advertising().start();
 
-  // 2) Wire the bridge: USB keyboard + target hotkeys in, BLE HID out.
-  bridge.addInput(keyboard);
+  // 2) Load the persisted layout settings, then wire the bridge: USB keyboard
+  // + target hotkeys in, BLE HID out. Every physical USB keyboard merged by
+  // this adapter shares this engraving layout.
+  esp32keybridge::LayoutSettingsError settingsError;
+  const esp32keybridge::LayoutSettingsLoadStatus loadStatus =
+      settingsStore.loadOrDefault(layoutSettings, &settingsError);
+  Serial.printf("Layout settings load status: %u\n", static_cast<unsigned>(loadStatus));
+  if (settingsError.message != nullptr)
+  {
+    Serial.printf("Layout settings detail: %s\n", settingsError.message);
+  }
+
+  esp32keybridge::InputConfig &keyboardConfig = bridgeConfig.addInputConfig();
+  bridge.addInput(keyboard, keyboardConfig);
   bridge.addOutput(host);
 
   // 3) Hold CapsLock to turn H/J/K/L into the arrow keys (see the NavLayer
   //    example for the full explanation).
-  esp32keybridge::ESP32KeyBridgeConfig config;
   esp32keybridge::LayerConfig &nav =
-      config.addLayer(esp32keybridge::KeyboardUsage::CapsLock);
+      bridgeConfig.addLayer(esp32keybridge::KeyboardUsage::CapsLock);
   nav.remap(esp32keybridge::KeyboardUsage::H, esp32keybridge::KeyboardUsage::Left);
   nav.remap(esp32keybridge::KeyboardUsage::J, esp32keybridge::KeyboardUsage::Down);
   nav.remap(esp32keybridge::KeyboardUsage::K, esp32keybridge::KeyboardUsage::Up);
   nav.remap(esp32keybridge::KeyboardUsage::L, esp32keybridge::KeyboardUsage::Right);
-  bridge.applyConfig(config);
+  if (!layoutSettings.apply(bridge, bridgeConfig, keyboardConfig, &settingsError))
+  {
+    Serial.printf("Layout settings apply failed: %s\n",
+                  settingsError.message != nullptr ? settingsError.message : "unknown");
+    return;
+  }
+
+  // 4) Start the local settings website. Connect a phone to this WPA2 network
+  // and open http://192.168.4.1/. Replace these development credentials before
+  // deploying a device.
+  if (!settingsWeb.enableEditing(settingsStore, bridgeConfig, keyboardConfig))
+  {
+    Serial.println("Settings editing could not be enabled");
+    return;
+  }
+  esp32keybridge::SettingsAccessPointConfig accessPoint;
+  accessPoint.ssid = "KeyBridge-Setup";
+  accessPoint.password = "keybridge";
+  accessPoint.maxConnections = 1;
+  esp32keybridge::SettingsWebError webError;
+  if (!settingsWeb.begin(accessPoint, &webError))
+  {
+    Serial.printf("Settings website failed: %s\n",
+                  webError.message != nullptr ? webError.message : "unknown");
+  }
+  else
+  {
+    Serial.printf("Settings Wi-Fi: %s / %s\n", accessPoint.ssid, accessPoint.password);
+    Serial.printf("Settings URL: http://%s/\n", settingsWeb.address().toString().c_str());
+  }
 }
 
 void loop()
@@ -81,5 +129,6 @@ void loop()
   // arrived is part of this cycle.
   ble.update();
   bridge.update();
+  settingsWeb.update();
   delay(1);
 }

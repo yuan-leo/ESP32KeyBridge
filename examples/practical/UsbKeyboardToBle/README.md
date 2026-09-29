@@ -9,6 +9,14 @@ Make a wired USB keyboard wireless. The keyboard plugs into the ESP32, and the P
 - Lock state comes from the Bluetooth host: its LED output report is the authority, and the bridge forwards it back to the USB keyboard's LEDs. Press Caps Lock on the keyboard and the LED follows the host, not a guess.
 - Hold **Scroll Lock** and press top-row **1**, **2**, or **3** to switch to that bonded host slot. Press **Scroll Lock + 0** to replace the selected slot and enter pairing mode. The Scroll Lock LED flashes while switching or pairing, then the bridge restores the host's real Scroll Lock state.
 
+## Local layout settings
+
+The ESP32-S3 also hosts the layout-settings page. Connect a phone to
+`KeyBridge-Setup` with password `keybridge`, then open
+`http://192.168.4.1/`. Saving verifies the redundant NVS record before the new
+input/host layouts, conversion state, and toggle key are applied. Change these
+development credentials before deploying a device.
+
 ## Only one USB port is needed
 
 The PC side is Bluetooth, not USB, so only the keyboard side uses USB. That means a single-USB chip is enough — an **ESP32-S3**, not the ESP32-P4 the USB-to-USB examples (`SwapCtrlCapsLock`, `NavLayer`, ...) require.
@@ -17,6 +25,7 @@ The PC side is Bluetooth, not USB, so only the keyboard side uses USB. That mean
 
 - Plug the keyboard into the ESP32-S3's native USB port (read as USB Host). The board has to supply bus power to the keyboard: use a board with a USB-A host connector, or a USB-OTG cable plus external 5V.
 - Power the board from its UART port or a battery. The serial console on UART0 shows the BLE state.
+- Select the **Minimal SPIFFS (1.9MB APP with OTA)** partition scheme when building manually. The example's `sketch.yaml` selects it automatically; the combined USB Host, BLE, and Wi-Fi firmware does not fit the default 1.25MB application partition.
 
 ## Pairing
 
@@ -27,5 +36,5 @@ The device advertises as `KeyBridge Keyboard`. Press **Scroll Lock + 0**, then p
 EspBle delivers its callbacks from the context that calls `ble.update()`, so it belongs in the same `loop()` as `bridge.update()` — and before it, so a report that just arrived is part of this cycle:
 
 ```cpp
-void loop() { ble.update(); bridge.update(); delay(1); }
+void loop() { ble.update(); bridge.update(); settingsWeb.update(); delay(1); }
 ```

@@ -17,6 +17,8 @@ def test_required_project_files_exist():
         "src/ESP32KeyBridgeBluetooth.h",
         "src/ESP32KeyBridgeSettings.h",
         "src/ESP32KeyBridgeSettings.cpp",
+        "src/ESP32KeyBridgeSettingsJson.h",
+        "src/ESP32KeyBridgeSettingsJson.cpp",
         "src/ESP32KeyBridgePreferences.h",
         "src/ESP32KeyBridgeWeb.h",
         "src/ESP32KeyBridgeEspBle.h",
@@ -85,14 +87,16 @@ def test_examples_are_grouped_with_docs_and_compile_profiles():
     assert missing == []
 
 
-def test_phase2_settings_portal_is_offline_and_read_only():
+def test_phase3_settings_portal_is_offline_and_has_one_write_endpoint():
     web = (ROOT / "src/ESP32KeyBridgeWeb.h").read_text(encoding="utf-8")
 
     assert 'server_.on("/", HTTP_GET' in web
     assert 'server_.on("/api/v1/config", HTTP_GET' in web
+    assert 'server_.on("/api/v1/config", HTTP_PUT' in web
+    assert 'server_.on("/api/v1/layouts", HTTP_GET' in web
     assert 'server_.on("/api/v1/status", HTTP_GET' in web
     assert 'server_.on("/healthz", HTTP_GET' in web
     assert "HTTP_POST" not in web
-    assert "HTTP_PUT" not in web
+    assert web.count("HTTP_PUT") == 1
     assert "https://" not in web
     assert "http://" not in web

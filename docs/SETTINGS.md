@@ -1,8 +1,14 @@
 # Persistent layout settings (ESP32-S3)
 
 Phase 1 of the locally hosted configuration work provides the settings and
-persistence layer. Phase 2's read-only network view is demonstrated by
+persistence layer. Phases 2 and 3's network view and editor are demonstrated by
 [`SettingsPortal`](../examples/practical/SettingsPortal/).
+
+The Phase 3 API accepts a complete settings document at `PUT /api/v1/config`.
+Every field is required exactly once; unknown fields, duplicates, JSON escapes,
+unsupported layouts, reserved keyboard usages, trailing data, and documents
+over 512 bytes are rejected. The portable decoder lives in
+`ESP32KeyBridgeSettingsJson.h`, independent of the web transport.
 
 ## Stored settings
 
@@ -75,10 +81,11 @@ void setup()
 }
 ```
 
-When the later web UI receives an edit, build a candidate copy and use its
-setters. Save and apply it only after every submitted field is accepted. HTTP
-callbacks must hand the candidate to the main loop rather than calling
-`apply()` from a network task.
+When the web UI receives an edit, it builds and validates a complete candidate,
+then saves and applies it only after every submitted field is accepted.
+`Esp32S3SettingsWebServer::update()` handles HTTP requests synchronously, so
+call it from the same loop context as `bridge.update()`; do not move settings
+application to a network task.
 
 ```cpp
 esp32keybridge::KeyboardLayoutSettings candidate = layoutSettings;

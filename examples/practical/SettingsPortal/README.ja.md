@@ -2,12 +2,12 @@
 
 [English](README.md)
 
-ESP32-S3 が host する設定 website の Phase 2 bring-up です。WPA2 SoftAP を
-起動し、保存済み layout 設定と bridge の live status を表示する responsive
-な offline page を配信します。
+ESP32-S3 が host する設定 website の bring-up です。WPA2 SoftAP を起動し、
+保存済み layout 設定の編集と bridge の live status 表示ができる responsive
+な offline page を配信します。保存内容は厳密に検証し、二重化 NVS へ書いて
+読戻し確認を済ませてから bridge へ適用します。
 
-この Phase は read-only です。設定書込み endpoint、captive portal、有線
-keyboard からの page 操作はまだ含みません。
+captive portal と有線 keyboard からの page 操作はまだ含みません。
 
 ## 動かし方
 

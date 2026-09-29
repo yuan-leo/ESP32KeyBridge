@@ -1,6 +1,8 @@
 # Changelog / 変更履歴
 
 ## Unreleased
+- (EN) Add Phase 3 layout editing: enumerate bundled layouts, strictly decode the complete versioned JSON document, expose one configuration `PUT`, verify redundant NVS persistence before live apply, and provide responsive browser controls with explicit save/error state.
+- (JA) Phase 3 の layout 編集を追加。bundled layout 列挙、version 付き完全 JSON document の厳密 decode、単一の設定 `PUT`、live apply 前の二重化 NVS 読戻し確認、保存・error 状態を明示する browser UI を実装。
 - (EN) Add the ESP32-S3 local-configuration Phase 2 network foundation: a WPA2 SoftAP, offline read-only settings page, configuration/status JSON endpoints, security headers, and the `SettingsPortal` bring-up example.
 - (JA) ESP32-S3 local configuration の Phase 2 として、WPA2 SoftAP、offline read-only 設定page、設定/status JSON endpoint、security header、bring-up 用 `SettingsPortal` example を追加。
 - (EN) Start the ESP32-S3 local-configuration milestone with validated, versioned keyboard-layout settings and a redundant Preferences/NVS store. Alternating CRC-protected records preserve the previous valid settings across interrupted writes or corruption, with safe defaults when neither record is usable.
