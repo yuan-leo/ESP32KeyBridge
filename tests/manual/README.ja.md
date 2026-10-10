@@ -23,17 +23,15 @@ LED output report → lock 正本の loopback は peer テスト(`usb_device_key
 ## ESP32-S3 captive portal discovery
 
 - `SettingsPortal` または `UsbKeyboardToBle` を ESP32-S3 へ書き込む。
-- Android または iOS phone から example Wi-Fi `KeyBridge-Setup` へ
-  password `keybridge` で接続する。
+- Android または iOS phone から password なしの open Wi-Fi
+  `KeyBridge-Setup` へ接続する。
 - phone が ESP32 KeyBridge 設定 page を提示または自動表示することを確認する。
   OS が captive prompt を抑止した場合は任意の plain HTTP site を開き、
   `http://192.168.4.1/` へ redirect されることを確認する。
-- login challenge が表示されることを確認する。誤った login が拒否されることを
-  確認後、example username `admin`、password `configure` で sign in する。
+- Wi-Fi password と website login がないことを確認する。
 - internet 接続なしで設定 page が動き、未知の `/api/v1/...` path は HTML
   page ではなく JSON 404 を返すことを確認する。
-- private/incognito browser session で `/api/v1/status` を直接開き、有効な
-  portal credential を入力するまでは 401 を返すことを確認する。
+- 2台目の client から `/api/v1/status` を開けることを確認する。
 
 手順を追加するときは、必要なボード、配線、使用する example、期待される観測結果を明記します。
 
@@ -44,7 +42,14 @@ manual 用の ESP32-S3 は常時接続前提ではありません。`.env` で�
 `UsbKeyboardToBle` を書き込み、Web サイトとキーボードでプロファイル1、2、3の
 状態が一致することを確認します。空スロットでは `Scroll Lock+N` がペアリングを
 開始せずにそのスロットだけを選択し、登録済みスロットでは指定先への再接続を
-開始する必要があります。ペアリング/置換、キャンセル、120秒タイムアウト、
+開始する必要があります。再接続の30秒停止、ペアリング/置換、キャンセル、120秒タイムアウト、
 再起動後のラベル保持、接続中/非接続スロットの削除、完全なアドレスと
 選択/接続表示が再起動後も同じスロットに残ることを確認します。
+
+label、MAC、remote host name（取得不可なら `Not reported by host`）を確認します。
+`Stop / Force disconnect` で busy 状態から idle に戻ること、Bluetooth only reset が
+layout/macro を保持すること、Reset everything が全設定を消すことを確認します。
+HW-678 GPIO 48 WS2812 で profile 1 blue / 2 green / 3 magenta、solid、breathing、
+pairing の色/white、切断 flash、amber reset、triple red error、起動 self-test を確認し、
+PWR/TX/RX LED が firmware 制御されないことを確認します。
 

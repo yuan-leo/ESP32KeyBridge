@@ -191,3 +191,23 @@ def test_hw678_status_led_uses_only_the_gpio48_rgb_led():
     assert "GPIO 48" in sketch
     assert "rgbLedWrite(RGB_BUILTIN" in sketch
     assert "PWR" in sketch and "TX" in sketch and "RX" in sketch
+
+
+def test_open_portal_recovery_reset_and_led_behavior_is_documented():
+    settings = (ROOT / "docs/SETTINGS.md").read_text(encoding="utf-8")
+    reference = (ROOT / "examples/practical/UsbKeyboardToBle/README.md").read_text(
+        encoding="utf-8"
+    )
+    manual = (ROOT / "tests/manual/README.md").read_text(encoding="utf-8")
+    combined = settings + reference + manual
+
+    assert "intentionally open" in settings
+    assert "Anyone connected" in settings
+    assert "Stop / Force disconnect" in settings
+    assert "Not reported by host" in settings
+    assert "Bluetooth only" in settings and "Reset everything" in settings
+    assert "GPIO 48" in reference and "WS2812" in reference
+    for phrase in ["Profile 1: blue", "Profile 2: green", "Profile 3: magenta", "triple red"]:
+        assert phrase in combined
+    assert "PWR, TX, and RX" in reference
+    assert "30 seconds" in manual and "120 seconds" in manual

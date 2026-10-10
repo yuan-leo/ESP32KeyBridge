@@ -59,6 +59,7 @@ tests/
 | 7 | Bluetooth Classic HID output / input | | 実装済み(`ButtonsToClassic` / `ClassicKeyboardToBle`) | 実装済み(無印 ESP32 1台: stack + Device 3 profile SDP 登録 + Host 起動 + 未接続 adapter state) | 実装済み(無印 ESP32 2台: 双方向 keyboard / modifier / 6KRO / mouse / consumer output / LED / 切断解放) | 外部 Host OS / 市販 Classic keyboard 確認 |
 | - | ~~設定の保存 / 読み込み・CDC serial 設定 reference example~~ | | **scope 外** | **scope 外** | | **scope 外** |
 | 8 | Bluetooth 接続先 hotkey 切替(Scroll Lock + 上段 `1..N`)、選択 slot pairing(`Scroll Lock + 0`)、Scroll Lock LED status | 予定 | 予定 | | 予定 | 実 host 切替・pairing・LED 状態復元確認 |
+| 8 | open 設定 portal、force disconnect、2 scope reset、remote name、HW-678 GPIO 48 RGB | structure test | S3 reference build | portable deadline/reset/RGB test | | 30秒再接続、120秒pairing、reset保持範囲、LED legend 実機確認 |
 | 9 | locally hosted web UI(layout 切替 / macro 設定) | 予定 | 予定 | 予定 | | browser 実操作確認 |
 
 ## Peer テストの位置付け

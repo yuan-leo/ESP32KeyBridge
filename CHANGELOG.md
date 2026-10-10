@@ -1,12 +1,10 @@
 # Changelog / 変更履歴
 
 ## Unreleased
-- (EN) Add authenticated local-web monitoring and control for all three remembered BLE HID host profiles, including persistent labels, full addresses, directed reconnect, pair/replace with a two-minute timeout, cancel, and delete. Fix `Scroll Lock+1/2/3` so empty slots remain distinctly selected without implicitly pairing.
-- (JA) 記憶済み BLE HID host 3プロファイルの認証付きWeb監視・操作を追加。永続ラベル、完全なaddress、指定再接続、2分timeout付きpair/replace、cancel、deleteに対応。`Scroll Lock+1/2/3` は空slotも自動pairせず個別に選択するよう修正。
+- (EN) Make the ESP32-S3 setup Wi-Fi and website intentionally open; add force-disconnect recovery, bounded reconnect, learned Bluetooth host names, Bluetooth-only/full reset, and the HW-678 GPIO 48 RGB status legend. The three profiles retain editable labels and full addresses.
+- (JA) ESP32-S3 設定 Wi-Fi / website を open 化。force disconnect、再接続 timeout、Bluetooth host name 取得、Bluetooth-only / 全設定 reset、HW-678 GPIO 48 RGB status 表示を追加。3 profile の編集可能 label と完全 address を保持。
 - (EN) Add four built-in Dvorak layouts (standard, I/U-swapped, and QWERTY-position shortcut variants) and advertise BLE target slots with `1`-`3` appended to the device name.
 - (JA) Dvorak 4 variant（標準、I/U 入替、QWERTY 位置 shortcut 版）を内蔵し、BLE 接続先 slot ごとの device name に `1`〜`3` を付加。
-- (EN) Add Phase 7 opt-in HTTP Digest authentication for the ESP32-S3 settings page, health check, and all registered API routes, with strict paired credential validation and development login examples.
-- (JA) Phase 7 の opt-in HTTP Digest authentication を追加。ESP32-S3 設定 page、health check、全登録 API route を保護し、credential pair の厳密な検証と開発用 login example を実装。
 - (EN) Add Phase 6 opt-in captive-portal discovery: wildcard local DNS, fixed-AP-address redirects for unknown non-API GET probes, API-safe 404 behavior, and automatic discovery enabled in both ESP32-S3 settings examples.
 - (JA) Phase 6 の opt-in captive portal discovery を追加。local wildcard DNS、未知の非 API GET probe から固定 AP address への redirect、API の安全な 404 動作を実装し、両 ESP32-S3 設定 example で自動検出を有効化。
 - (EN) Add Phase 5 macro configuration: four F1-F24 text-macro slots, strict UTF-8 and versioned JSON validation, independent redundant NVS persistence with read-back verification, atomic live full-table replacement, and responsive browser editing.

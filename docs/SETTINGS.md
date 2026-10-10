@@ -2,7 +2,7 @@
 
 Phase 1 of the locally hosted configuration work provides the layout settings
 and persistence layer. Phases 2 through 7's network view, editor, keyboard
-navigation, macro settings, captive discovery, and portal authentication are demonstrated by
+navigation, macro settings, captive discovery, and open local access are demonstrated by
 [`SettingsPortal`](../examples/practical/SettingsPortal/).
 
 The Phase 3 API accepts a complete settings document at `PUT /api/v1/config`.
@@ -162,7 +162,6 @@ Phase 6 adds opt-in discovery to `SettingsAccessPointConfig`:
 ```cpp
 esp32keybridge::SettingsAccessPointConfig accessPoint;
 accessPoint.ssid = "KeyBridge-Setup";
-accessPoint.password = "keybridge";
 accessPoint.captivePortal = true;
 settingsWeb.begin(accessPoint);
 ```
@@ -174,43 +173,18 @@ The redirect never reflects the request's `Host` header. Registered routes
 behave normally; unknown `/api/` routes and non-GET requests retain JSON 404
 responses. `update()` services DNS alongside HTTP, and `end()` stops both.
 
-This feature only improves local page discovery. It does not weaken the
-required WPA2 passphrase, provision production credentials, or add an
-application authentication layer.
-
-## Portal authentication
-
-Phase 7 optionally protects the settings surface with HTTP Digest
-authentication. Supply both credentials before `begin()`:
-
-```cpp
-accessPoint.portalUsername = "device-admin";
-accessPoint.portalPassword = "replace-this-password";
-```
-
-The username must contain 1-32 bytes and the password 8-63 bytes. Supplying
-only one credential, an empty username, or an out-of-range value makes
-`begin()` fail with `InvalidPortalCredentials` before Wi-Fi starts. Omitting
-both preserves the unauthenticated behavior for sketches that deliberately
-rely only on WPA2.
-
-When enabled, the root page, health check, and every registered settings API
-route challenge with HTTP Digest authentication. Captive discovery remains
-unauthenticated: wildcard DNS and redirects reveal only the fixed portal URL,
-after which the page issues the login challenge. Unknown routes reveal no
-settings data.
-
-Digest authentication avoids sending the portal password directly in each
-request, but it is not TLS and does not encrypt response content. Keep the
-WPA2 passphrase enabled, use separate strong Wi-Fi and portal passwords, and
-replace the development credentials in the examples. Credential persistence
-or first-boot production provisioning is not part of Phase 7.
+The `KeyBridge-Setup` Wi-Fi and website are intentionally open: there is no
+Wi-Fi password and no HTTP login. Anyone connected to the setup network can
+view and change settings. Use the portal only where physical proximity is an
+acceptable access boundary, and turn the device off when configuration access
+should not be available.
 # Bluetooth profiles
 
 `UsbKeyboardToBle` can optionally bind its shared Bluetooth controller to the
 settings server. The page then shows all three remembered host slots, the
-selected and connected slot, full bonded address, persistent local label, and
-any connect/pair/delete operation. Only one BLE HID host is connected at a
+selected and connected slot, full bonded address, persistent local label,
+best-effort host-reported Bluetooth name, and any operation. When the host does
+not expose a usable name, the page shows `Not reported by host`. Only one BLE HID host is connected at a
 time. The three-slot limit comes from EspBle's bundled NimBLE bond store.
 
 `Scroll Lock+1`, `+2`, or `+3` selects that exact slot. An occupied slot starts
@@ -221,13 +195,25 @@ so cancel or timeout can leave it empty. Delete retains the label, never starts
 pairing, and can briefly disconnect the active host because EspBle cannot
 delete any bond while a BLE connection is open.
 
-Authenticated endpoints are:
+If an operation becomes stuck or the page reports busy, use **Stop / Force disconnect**.
+It stops advertising or disconnects the current host, suppresses automatic
+reconnect, and returns control to idle. Directed reconnect attempts also stop
+automatically after 30 seconds; pairing stops after 120 seconds.
+
+Open endpoints are:
 
 - `GET /api/v1/bluetooth` — current overall and three-slot snapshot.
 - `PUT /api/v1/bluetooth/label` — `{"slot":1,"label":"Laptop"}`.
 - `POST /api/v1/bluetooth/action` —
   `{"slot":1,"action":"connect","confirm":false}`. Actions are `connect`,
-  `pair`, `cancel`, and `delete`; pair/delete require `confirm:true`.
+  `pair`, `cancel`, `delete`, and `stop`; pair/delete require `confirm:true`.
+- `POST /api/v1/reset` — confirmed `bluetooth` or `everything` scope.
 
-Labels are UTF-8 and at most 24 bytes. They are local metadata because EspBle
-does not expose a bonded host's friendly name.
+Labels are editable UTF-8 metadata of at most 24 bytes. The MAC address is the
+saved peer identity. The host name is learned independently from the remote GAP
+Device Name characteristic and may remain unavailable.
+
+**Bluetooth only** deletes every BLE bond, profile, label, learned name, and
+MAC address, selects Profile 1, and restarts. **Reset everything** also clears
+the saved keyboard layouts and text macros before restarting. Duplicate reset
+requests during the restart window are rejected.

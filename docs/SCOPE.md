@@ -43,7 +43,7 @@ Status: **implemented (phases 1 through 7)**.
   [SETTINGS.md](SETTINGS.md).
 - Phase 1 models one keyboard input. Several physical keyboards merged by one
   adapter share that input's engraving layout.
-- Phase 2 provides an ESP32-S3 WPA2 SoftAP, an offline read-only settings page,
+- Phase 2 provides an ESP32-S3 SoftAP, an offline read-only settings page,
   and versioned `GET` endpoints for configuration and live status. It does not
   expose mutation endpoints, captive-portal DNS, or keyboard navigation.
 - Phase 3 adds a strict versioned JSON settings decoder, a single
@@ -64,20 +64,19 @@ Status: **implemented (phases 1 through 7)**.
 - Phase 6 adds optional captive-portal discovery. When enabled, wildcard DNS
   resolves names to the SoftAP and unknown non-API `GET` probe paths redirect
   to the fixed local portal address. Unknown API paths and non-GET requests
-  retain their JSON 404 response, and WPA2 remains required.
-- Phase 7 adds optional HTTP Digest authentication for the page, health check,
-  and every registered API route. Captive discovery redirects remain reachable
-  before login, but they disclose no settings. Portal credentials are separate
-  from the WPA2 passphrase and validated before the SoftAP starts.
+  retain their JSON 404 response.
+- The current portal is intentionally open: neither the SoftAP nor HTTP routes
+  require credentials. Anyone connected can change settings.
+- Three Bluetooth output profiles expose editable labels, MAC addresses, and a
+  best-effort remote name, plus force-stop recovery and two reset scopes.
+- HW-678 v0.0.0 status uses only the GPIO 48 WS2812; PWR/TX/RX remain untouched.
 
 - Provide a locally hosted web interface.
 - Configure keyboard-layout switching through that interface.
 - Configure macros through that interface.
 
-The current development portal uses an ESP32-S3 WPA2 SoftAP with fixed example
-credentials plus fixed example Digest credentials. Production credential
-provisioning is not yet specified; deployments must replace both sets in the
-sketch. Macro persistence is stored independently rather than being added to
+The current portal uses the open ESP32-S3 `KeyBridge-Setup` network. Physical
+proximity is the access boundary. Macro persistence remains independent from
 the layout-settings record.
 
 ## Explicitly not inferred
