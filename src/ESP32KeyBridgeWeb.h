@@ -75,7 +75,7 @@ function bluetoothMessage(text,error=false){$('bluetooth-status').textContent=te
 async function bluetoothAction(slot,action,confirmed=false){if(confirmed){const warning=action==='delete'?'Delete this profile? The current Bluetooth host may briefly disconnect.':'Replace this profile? Its old bond is removed immediately and cannot be restored if pairing is cancelled or times out.';if(!confirm(warning))return}bluetoothMessage('Sending Bluetooth request…');try{const r=await fetch('/api/v1/bluetooth/action',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({slot,action,confirm:confirmed})});const result=await r.json();if(!r.ok)throw new Error(result.message||result.error||r.status);bluetoothMessage('Bluetooth request accepted');renderBluetooth(result)}catch(e){bluetoothMessage('Bluetooth request failed: '+e.message,true)}}
 async function saveBluetoothLabel(slot,input){if(new TextEncoder().encode(input.value).length>24){bluetoothMessage('Label must contain at most 24 UTF-8 bytes',true);return}try{const r=await fetch('/api/v1/bluetooth/label',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({slot,label:input.value})});const result=await r.json();if(!r.ok)throw new Error(result.message||result.error||r.status);bluetoothMessage('Label saved');renderBluetooth(result)}catch(e){bluetoothMessage('Label save failed: '+e.message,true)}}
 function profileButton(text,disabled,handler,danger=false){const b=document.createElement('button');b.type='button';b.textContent=text;b.disabled=disabled;if(danger)b.className='danger';b.addEventListener('click',handler);return b}
-function renderBluetooth(s){if(!s.available){$('bluetooth-title').textContent='Bluetooth management unavailable';$('bluetooth-profiles').replaceChildren();return}$('bluetooth-title').textContent=`${s.connectedCount} device${s.connectedCount===1?'':'s'} connected · Profile ${s.selectedSlot} selected · ${s.status}${s.pairingSecondsRemaining?` · ${s.pairingSecondsRemaining}s remaining`:''}`;const cards=s.profiles.map(p=>{const card=document.createElement('article');card.className='card profile-card'+(p.selected?' selected':'')+(p.connected?' connected':'');const title=document.createElement('div');title.className='profile-title';const strong=document.createElement('strong');strong.textContent='Profile '+p.slot;const badges=document.createElement('span');badges.className='badges';badges.textContent=[p.selected?'Selected':'',p.connected?'Connected':'',p.state].filter(Boolean).join(' · ');title.append(strong,badges);const input=document.createElement('input');input.value=p.label;input.maxLength=24;input.setAttribute('aria-label','Profile '+p.slot+' label');const address=document.createElement('div');address.className='address';address.textContent=p.occupied?p.address:'Empty profile';const actions=document.createElement('div');actions.className='profile-actions';const busy=s.operation!=='none';if(p.occupied)actions.append(profileButton('Connect',busy||p.connected,()=>bluetoothAction(p.slot,'connect')));actions.append(profileButton(p.occupied?'Pair / Replace':'Pair',busy,()=>bluetoothAction(p.slot,'pair',true)));if(p.occupied)actions.append(profileButton('Delete',busy,()=>bluetoothAction(p.slot,'delete',true),true));actions.append(profileButton('Rename',busy,()=>saveBluetoothLabel(p.slot,input)));if(s.operation==='pair'&&p.selected)actions.append(profileButton('Cancel Pairing',false,()=>bluetoothAction(p.slot,'cancel')));card.append(title,input,address,actions);return card});$('bluetooth-profiles').replaceChildren(...cards);if(s.error)bluetoothMessage(s.error,true)}
+function renderBluetooth(s){if(!s.available){$('bluetooth-title').textContent='Bluetooth management unavailable';$('bluetooth-profiles').replaceChildren();return}$('bluetooth-title').textContent=`${s.connectedCount} device${s.connectedCount===1?'':'s'} connected · Profile ${s.selectedSlot} selected · ${s.status}${s.pairingSecondsRemaining?` · ${s.pairingSecondsRemaining}s remaining`:''}`;const root=$('bluetooth-profiles');if(root.contains(document.activeElement))return;const cards=s.profiles.map(p=>{const card=document.createElement('article');card.className='card profile-card'+(p.selected?' selected':'')+(p.connected?' connected':'');const title=document.createElement('div');title.className='profile-title';const strong=document.createElement('strong');strong.textContent='Profile '+p.slot;const badges=document.createElement('span');badges.className='badges';badges.textContent=[p.selected?'Selected':'',p.connected?'Connected':'',p.state].filter(Boolean).join(' · ');title.append(strong,badges);const input=document.createElement('input');input.value=p.label;input.maxLength=24;input.setAttribute('aria-label','Profile '+p.slot+' label');const address=document.createElement('div');address.className='address';address.textContent=p.occupied?p.address:'Empty profile';const actions=document.createElement('div');actions.className='profile-actions';const busy=s.operation!=='none';if(p.occupied)actions.append(profileButton('Connect',busy||p.connected,()=>bluetoothAction(p.slot,'connect')));actions.append(profileButton(p.occupied?'Pair / Replace':'Pair',busy,()=>bluetoothAction(p.slot,'pair',true)));if(p.occupied)actions.append(profileButton('Delete',busy,()=>bluetoothAction(p.slot,'delete',true),true));actions.append(profileButton('Rename',busy,()=>saveBluetoothLabel(p.slot,input)));if(s.operation==='pair'&&p.selected)actions.append(profileButton('Cancel Pairing',false,()=>bluetoothAction(p.slot,'cancel')));card.append(title,input,address,actions);return card});root.replaceChildren(...cards);if(s.error)bluetoothMessage(s.error,true)}
 async function pollBluetooth(){if(document.hidden){setTimeout(pollBluetooth,1000);return}try{renderBluetooth(await json('/api/v1/bluetooth'))}catch(e){$('bluetooth-title').textContent='Bluetooth monitor unavailable';bluetoothMessage('Could not refresh Bluetooth status',true)}finally{setTimeout(pollBluetooth,1000)}}
 function ensureToggle(value){const s=$('toggle');if(![...s.options].some(o=>Number(o.value)===value)){const o=document.createElement('option');o.value=value;o.textContent='HID 0x'+value.toString(16).padStart(2,'0').toUpperCase();s.append(o)}s.value=String(value)}
 async function load(){try{const [l,c]=await Promise.all([json('/api/v1/layouts'),json('/api/v1/config')]);for(const id of ['input-layout','host-layout']){const s=$(id);s.replaceChildren(...l.layouts.map(name=>{const o=document.createElement('option');o.value=name;o.textContent=name;return o}))}$('input-layout').value=c.inputLayout;$('host-layout').value=c.hostLayout;$('conversion').checked=c.layoutConversionEnabled;ensureToggle(c.layoutConversionToggleUsage);editable=!!c.editable;$('save').disabled=!editable;if(!editable)message('Read-only mode')}catch(e){editable=false;message('Configuration unavailable',true);$('save').disabled=true}}
@@ -652,7 +652,16 @@ private:
         else if (*p == '\n') out += "\\n";
         else if (*p == '\r') out += "\\r";
         else if (*p == '\t') out += "\\t";
-        else if (*p >= 0x20) out += static_cast<char>(*p);
+        else if (*p == '\b') out += "\\b";
+        else if (*p == '\f') out += "\\f";
+        else if (*p < 0x20)
+        {
+          static const char hex[] = "0123456789ABCDEF";
+          out += "\\u00";
+          out += hex[*p >> 4];
+          out += hex[*p & 0x0f];
+        }
+        else out += static_cast<char>(*p);
       }
     }
     out += '"';
@@ -749,7 +758,14 @@ private:
     if (body.length() > 128 || !decodeLabelBody(body, slot, label))
     { sendApiError(400, "invalid_request", "json", "expected slot and a label of at most 24 bytes"); return; }
     if (!bluetooth_->setSlotLabel(slot, label.c_str()))
-    { sendApiError(bluetooth_->busy() ? 409 : 500, "label_failed", "label", "label could not be saved"); return; }
+    {
+      BluetoothTargetSnapshot failed; bluetooth_->snapshot(failed);
+      const bool storage = strcmp(failed.error, "profile_storage_write_failed") == 0;
+      sendApiError(bluetooth_->busy() ? 409 : (storage ? 500 : 400),
+                   storage ? "storage_failed" : "invalid_label", "label",
+                   storage ? "label could not be saved" : "label is not valid UTF-8 or exceeds 24 bytes");
+      return;
+    }
     sendBluetooth();
   }
 

@@ -70,6 +70,16 @@ bool validUtf8(const char *text, size_t &length)
     if (extra == 99 || i + extra >= length) return false;
     for (size_t j = 1; j <= extra; ++j)
       if ((static_cast<uint8_t>(text[i + j]) & 0xc0) != 0x80) return false;
+    if (extra == 2)
+    {
+      const uint8_t second = static_cast<uint8_t>(text[i + 1]);
+      if ((c == 0xe0 && second < 0xa0) || (c == 0xed && second >= 0xa0)) return false;
+    }
+    if (extra == 3)
+    {
+      const uint8_t second = static_cast<uint8_t>(text[i + 1]);
+      if ((c == 0xf0 && second < 0x90) || (c == 0xf4 && second >= 0x90)) return false;
+    }
     i += extra + 1;
   }
   return true;

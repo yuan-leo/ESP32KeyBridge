@@ -723,6 +723,9 @@ static void test_bluetooth_profile_settings_persist_labels_and_addresses()
   assert(profiles.assign(2, "aa:bb:cc:dd:ee:ff", 1));
   assert(profiles.setLabel(2, "Office PC"));
   assert(!profiles.setLabel(2, "1234567890123456789012345"));
+  assert(!profiles.setLabel(2, "\xc0\x80"));
+  assert(!profiles.setLabel(2, "\xed\xa0\x80"));
+  assert(!profiles.setLabel(2, "\xf4\x90\x80\x80"));
   assert(store.save(profiles));
 
   esp32keybridge::BluetoothProfileRegistry loaded;

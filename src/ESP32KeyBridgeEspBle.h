@@ -262,12 +262,18 @@ public:
         static_cast<uint32_t>(millis() - pairingStartedMs_) >= PairingTimeoutMs)
     {
       ble_.advertising().stop();
-      if (pairingConnectionId_ != 0) ble_.disconnect(pairingConnectionId_);
       pending_ = Pending::None;
-      pairingConnectionId_ = 0;
-      operation_ = BluetoothProfileOperation::None;
-      status_ = peripheralConnectionId_ != 0 ? BluetoothTargetStatus::Connected
-                                              : BluetoothTargetStatus::Idle;
+      if (pairingConnectionId_ != 0)
+      {
+        cancellingDisconnect_ = true;
+        operation_ = BluetoothProfileOperation::Cancelling;
+        if (!ble_.disconnect(pairingConnectionId_)) fail("disconnect_failed");
+      }
+      else
+      {
+        operation_ = BluetoothProfileOperation::None;
+        status_ = BluetoothTargetStatus::Idle;
+      }
     }
   }
 
@@ -302,9 +308,16 @@ public:
     clearError();
     loadProfileSettings();
     loadSlots();
+    const size_t previousSlot = selectedSlot_;
+    const BluetoothProfileRegistry previousRegistry = registry_;
     selectedSlot_ = slot;
     registry_.select(slot);
-    if (!saveRegistry()) return fail("profile_storage_write_failed");
+    if (!saveRegistry())
+    {
+      selectedSlot_ = previousSlot;
+      registry_ = previousRegistry;
+      return fail("profile_storage_write_failed");
+    }
     if (!slotUsed_[slot - 1])
     {
       operation_ = BluetoothProfileOperation::None;
@@ -330,8 +343,7 @@ public:
       if (!ble_.disconnect(peripheralConnectionId_))
       {
         pending_ = Pending::None;
-        status_ = BluetoothTargetStatus::Failed;
-        return false;
+        return fail("disconnect_failed");
       }
       return true;
     }
@@ -350,9 +362,16 @@ public:
     clearError();
     loadProfileSettings();
     loadSlots();
+    const size_t previousSlot = selectedSlot_;
+    const BluetoothProfileRegistry previousRegistry = registry_;
     selectedSlot_ = slot;
     registry_.select(slot);
-    if (!saveRegistry()) return fail("profile_storage_write_failed");
+    if (!saveRegistry())
+    {
+      selectedSlot_ = previousSlot;
+      registry_ = previousRegistry;
+      return fail("profile_storage_write_failed");
+    }
     status_ = BluetoothTargetStatus::Pairing;
     operation_ = BluetoothProfileOperation::Pairing;
     pairingStartedMs_ = millis();
@@ -364,8 +383,7 @@ public:
       if (!ble_.disconnect(peripheralConnectionId_))
       {
         pending_ = Pending::None;
-        status_ = BluetoothTargetStatus::Failed;
-        return false;
+        return fail("disconnect_failed");
       }
       return true;
     }
@@ -376,12 +394,18 @@ public:
   {
     if (status_ != BluetoothTargetStatus::Pairing) return reject("not_pairing");
     ble_.advertising().stop();
-    if (pairingConnectionId_ != 0) ble_.disconnect(pairingConnectionId_);
     pending_ = Pending::None;
-    pairingConnectionId_ = 0;
-    operation_ = BluetoothProfileOperation::None;
-    status_ = peripheralConnectionId_ != 0 ? BluetoothTargetStatus::Connected
-                                            : BluetoothTargetStatus::Idle;
+    if (pairingConnectionId_ != 0)
+    {
+      cancellingDisconnect_ = true;
+      operation_ = BluetoothProfileOperation::Cancelling;
+      if (!ble_.disconnect(pairingConnectionId_)) return fail("disconnect_failed");
+    }
+    else
+    {
+      operation_ = BluetoothProfileOperation::None;
+      status_ = BluetoothTargetStatus::Idle;
+    }
     return true;
   }
 
@@ -394,8 +418,14 @@ public:
     loadSlots();
     if (!slotUsed_[slot - 1]) return fail("empty_slot");
     deleteSlot_ = slot;
-    reconnectSlot_ = peripheralConnectionId_ != 0 && slot != selectedSlot_
-        ? selectedSlot_ : 0;
+    reconnectSlot_ = 0;
+    if (peripheralConnectionId_ != 0 && slotUsed_[slot - 1] &&
+        !peripheralAddress_.equalsIgnoreCase(slots_[slot - 1].peerAddress))
+    {
+      for (size_t i = 0; i < MaxSlots; ++i)
+        if (slotUsed_[i] && peripheralAddress_.equalsIgnoreCase(slots_[i].peerAddress))
+          reconnectSlot_ = i + 1;
+    }
     status_ = BluetoothTargetStatus::Deleting;
     operation_ = BluetoothProfileOperation::Deleting;
     pending_ = Pending::DeleteBond;
@@ -427,7 +457,13 @@ public:
     return true;
   }
 
-  bool busy() const override { return operation_ != BluetoothProfileOperation::None; }
+  bool busy() const override
+  {
+    return operation_ != BluetoothProfileOperation::None || pending_ != Pending::None ||
+           status_ == BluetoothTargetStatus::Switching ||
+           status_ == BluetoothTargetStatus::Pairing ||
+           status_ == BluetoothTargetStatus::Deleting;
+  }
 
   bool snapshot(BluetoothTargetSnapshot &out) const override
   {
@@ -525,7 +561,11 @@ private:
       {
         const size_t reconnect = reconnectSlot_;
         reconnectSlot_ = 0;
-        return selectSlot(reconnect);
+        targetBond_ = slots_[reconnect - 1];
+        status_ = BluetoothTargetStatus::Switching;
+        operation_ = BluetoothProfileOperation::Connecting;
+        pending_ = Pending::DirectedAdvertising;
+        return startPending();
       }
       return true;
     }
@@ -559,7 +599,7 @@ private:
       if (!ble_.disconnect(connection.id))
       {
         pending_ = Pending::None;
-        status_ = BluetoothTargetStatus::Failed;
+        fail("disconnect_failed");
       }
       return;
     }
@@ -590,6 +630,13 @@ private:
     if (pairingConnectionId_ == connection.id)
     {
       pairingConnectionId_ = 0;
+    if (cancellingDisconnect_)
+    {
+      cancellingDisconnect_ = false;
+      operation_ = BluetoothProfileOperation::None;
+      status_ = BluetoothTargetStatus::Idle;
+      return;
+    }
     }
     if (pending_ != Pending::None)
     {
@@ -604,6 +651,7 @@ private:
     {
       targetBond_ = slots_[selectedSlot_ - 1];
       status_ = BluetoothTargetStatus::Switching;
+      operation_ = BluetoothProfileOperation::Connecting;
       pending_ = Pending::DirectedAdvertising;
       startPending();
     }
@@ -675,6 +723,7 @@ private:
       return;
     }
     slotsLoaded_ = true;
+    const BluetoothProfileRegistry beforeReconciliation = registry_;
     for (size_t i = 0; i < MaxSlots; ++i)
     {
       slotUsed_[i] = false;
@@ -719,7 +768,11 @@ private:
         }
       }
     }
-    if (changed) saveRegistry();
+    if (changed && !saveRegistry())
+    {
+      registry_ = beforeReconciliation;
+      fail("profile_storage_write_failed");
+    }
   }
 
   bool saveRegistry()
@@ -731,6 +784,8 @@ private:
   {
     setError(message);
     operation_ = BluetoothProfileOperation::None;
+    pending_ = Pending::None;
+    cancellingDisconnect_ = false;
     status_ = BluetoothTargetStatus::Failed;
     return false;
   }
@@ -762,6 +817,7 @@ private:
   bool slotUsed_[MaxSlots] = {};
   bool slotsLoaded_ = false;
   bool profilesLoaded_ = false;
+  bool cancellingDisconnect_ = false;
   size_t deleteSlot_ = 0;
   size_t reconnectSlot_ = 0;
   uint32_t pairingStartedMs_ = 0;

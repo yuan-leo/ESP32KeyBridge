@@ -129,6 +129,7 @@ def test_phase7_settings_portal_is_offline_authenticated_and_bounded():
     assert "Pair / Replace" in web
     assert "setTimeout(pollBluetooth,1000)" in web
     assert "aria-live=\"polite\"" in web
+    assert "root.contains(document.activeElement)" in web
 
 
 def test_usb_keyboard_to_ble_wires_persistent_profile_management():
