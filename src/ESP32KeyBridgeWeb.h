@@ -11,6 +11,7 @@
 #include <WiFi.h>
 
 #include "ESP32KeyBridgeMacroSettings.h"
+#include "ESP32KeyBridgeBluetooth.h"
 #include "ESP32KeyBridgeMacroSettingsJson.h"
 #include "ESP32KeyBridgeSettings.h"
 #include "ESP32KeyBridgeSettingsJson.h"
@@ -37,12 +38,14 @@ h1{font-size:clamp(2rem,8vw,3.4rem);line-height:1;margin:.3rem 0 .8rem}.lede{col
 select{width:100%;margin-top:8px;padding:11px 12px;border:1px solid var(--line);border-radius:10px;background:#111813;color:var(--text);font:inherit}label.card{display:block}.check{display:flex;align-items:center;gap:12px;margin-top:13px;font-size:1.08rem}.check input{width:20px;height:20px;accent-color:var(--accent)}
 .macro-card{margin-top:16px}.macro-row{display:grid;grid-template-columns:minmax(120px,.35fr) 1fr;gap:12px;margin-top:12px}.macro-row textarea{width:100%;min-height:48px;resize:vertical;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:#111813;color:var(--text);font:inherit}.hint{color:var(--muted);font-size:.88rem;margin:6px 0 0}@media(max-width:600px){.macro-row{grid-template-columns:1fr}}
 .actions{display:flex;align-items:center;gap:14px;margin-top:18px}button{border:0;border-radius:12px;background:var(--accent);color:#0d1710;padding:12px 20px;font:700 1rem system-ui;cursor:pointer}button:disabled{opacity:.45;cursor:not-allowed}.message{color:var(--muted)}.message.error{color:#ff9f94}
+.bluetooth{margin-bottom:18px}.profile-card{display:grid;gap:9px}.profile-card.selected{border-color:var(--accent)}.profile-card.connected{box-shadow:0 0 0 1px var(--accent),0 16px 50px #0004}.profile-title{display:flex;justify-content:space-between;gap:12px}.badges{color:var(--accent);font-size:.82rem}.address{font:clamp(.78rem,3vw,.95rem) ui-monospace,monospace;color:var(--muted);word-break:break-all}.profile-card input{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:#111813;color:var(--text);font:inherit}.profile-actions{display:flex;flex-wrap:wrap;gap:8px}.profile-actions button{padding:9px 12px;font-size:.9rem}.danger{background:#ff9f94}.bluetooth-summary{margin-bottom:14px}
 footer{color:var(--muted);font-size:.86rem;margin-top:22px}code{color:var(--accent)}#keyboard-status{display:block;margin-top:7px}
 </style>
 </head>
 <body>
 <main>
 <header><div class="eyebrow">Local device settings</div><h1>ESP32 KeyBridge</h1><p class="lede">Choose how the attached keyboard is engraved and how the connected host interprets keys. Saving verifies the new NVS record before applying it.</p></header>
+<section class="card wide bluetooth" aria-labelledby="bluetooth-title"><div class="label">Bluetooth Profiles</div><div class="value bluetooth-summary" id="bluetooth-title">Checking Bluetooth profiles…</div><div class="grid" id="bluetooth-profiles"></div><div class="message" id="bluetooth-status" role="alert" aria-live="polite"></div></section>
 <form id="settings-form">
 <section class="grid">
 <label class="card"><span class="label">Keyboard layout</span><select id="input-layout" required></select></label>
@@ -59,7 +62,7 @@ footer{color:var(--muted);font-size:.86rem;margin-top:22px}code{color:var(--acce
 <div id="macro-slots"></div>
 <div class="actions"><button id="save-macros" type="submit">Save macros</button><span class="message" id="macro-status" role="status"></span></div>
 </form>
-<footer>Served directly by the ESP32-S3. API: <code>/api/v1/config</code>, <code>/api/v1/macros</code>, and <code>/api/v1/status</code>.<span id="keyboard-status">Checking wired keyboard navigation…</span></footer>
+<footer>Served directly by the ESP32-S3. API: <code>/api/v1/config</code>, <code>/api/v1/macros</code>, <code>/api/v1/bluetooth</code>, and <code>/api/v1/status</code>.<span id="keyboard-status">Checking wired keyboard navigation…</span></footer>
 </main>
 <script>
 const $=id=>document.getElementById(id);
@@ -68,6 +71,12 @@ let macroAvailable=false;
 async function json(path){const r=await fetch(path,{cache:'no-store'});if(!r.ok)throw new Error(r.status);return r.json()}
 function message(text,error=false){$('save-status').textContent=text;$('save-status').classList.toggle('error',error)}
 function macroMessage(text,error=false){$('macro-status').textContent=text;$('macro-status').classList.toggle('error',error)}
+function bluetoothMessage(text,error=false){$('bluetooth-status').textContent=text;$('bluetooth-status').classList.toggle('error',error)}
+async function bluetoothAction(slot,action,confirmed=false){if(confirmed){const warning=action==='delete'?'Delete this profile? The current Bluetooth host may briefly disconnect.':'Replace this profile? Its old bond is removed immediately and cannot be restored if pairing is cancelled or times out.';if(!confirm(warning))return}bluetoothMessage('Sending Bluetooth request…');try{const r=await fetch('/api/v1/bluetooth/action',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({slot,action,confirm:confirmed})});const result=await r.json();if(!r.ok)throw new Error(result.message||result.error||r.status);bluetoothMessage('Bluetooth request accepted');renderBluetooth(result)}catch(e){bluetoothMessage('Bluetooth request failed: '+e.message,true)}}
+async function saveBluetoothLabel(slot,input){if(new TextEncoder().encode(input.value).length>24){bluetoothMessage('Label must contain at most 24 UTF-8 bytes',true);return}try{const r=await fetch('/api/v1/bluetooth/label',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({slot,label:input.value})});const result=await r.json();if(!r.ok)throw new Error(result.message||result.error||r.status);bluetoothMessage('Label saved');renderBluetooth(result)}catch(e){bluetoothMessage('Label save failed: '+e.message,true)}}
+function profileButton(text,disabled,handler,danger=false){const b=document.createElement('button');b.type='button';b.textContent=text;b.disabled=disabled;if(danger)b.className='danger';b.addEventListener('click',handler);return b}
+function renderBluetooth(s){if(!s.available){$('bluetooth-title').textContent='Bluetooth management unavailable';$('bluetooth-profiles').replaceChildren();return}$('bluetooth-title').textContent=`${s.connectedCount} device${s.connectedCount===1?'':'s'} connected · Profile ${s.selectedSlot} selected · ${s.status}${s.pairingSecondsRemaining?` · ${s.pairingSecondsRemaining}s remaining`:''}`;const cards=s.profiles.map(p=>{const card=document.createElement('article');card.className='card profile-card'+(p.selected?' selected':'')+(p.connected?' connected':'');const title=document.createElement('div');title.className='profile-title';const strong=document.createElement('strong');strong.textContent='Profile '+p.slot;const badges=document.createElement('span');badges.className='badges';badges.textContent=[p.selected?'Selected':'',p.connected?'Connected':'',p.state].filter(Boolean).join(' · ');title.append(strong,badges);const input=document.createElement('input');input.value=p.label;input.maxLength=24;input.setAttribute('aria-label','Profile '+p.slot+' label');const address=document.createElement('div');address.className='address';address.textContent=p.occupied?p.address:'Empty profile';const actions=document.createElement('div');actions.className='profile-actions';const busy=s.operation!=='none';if(p.occupied)actions.append(profileButton('Connect',busy||p.connected,()=>bluetoothAction(p.slot,'connect')));actions.append(profileButton(p.occupied?'Pair / Replace':'Pair',busy,()=>bluetoothAction(p.slot,'pair',true)));if(p.occupied)actions.append(profileButton('Delete',busy,()=>bluetoothAction(p.slot,'delete',true),true));actions.append(profileButton('Rename',busy,()=>saveBluetoothLabel(p.slot,input)));if(s.operation==='pair'&&p.selected)actions.append(profileButton('Cancel Pairing',false,()=>bluetoothAction(p.slot,'cancel')));card.append(title,input,address,actions);return card});$('bluetooth-profiles').replaceChildren(...cards);if(s.error)bluetoothMessage(s.error,true)}
+async function pollBluetooth(){if(document.hidden){setTimeout(pollBluetooth,1000);return}try{renderBluetooth(await json('/api/v1/bluetooth'))}catch(e){$('bluetooth-title').textContent='Bluetooth monitor unavailable';bluetoothMessage('Could not refresh Bluetooth status',true)}finally{setTimeout(pollBluetooth,1000)}}
 function ensureToggle(value){const s=$('toggle');if(![...s.options].some(o=>Number(o.value)===value)){const o=document.createElement('option');o.value=value;o.textContent='HID 0x'+value.toString(16).padStart(2,'0').toUpperCase();s.append(o)}s.value=String(value)}
 async function load(){try{const [l,c]=await Promise.all([json('/api/v1/layouts'),json('/api/v1/config')]);for(const id of ['input-layout','host-layout']){const s=$(id);s.replaceChildren(...l.layouts.map(name=>{const o=document.createElement('option');o.value=name;o.textContent=name;return o}))}$('input-layout').value=c.inputLayout;$('host-layout').value=c.hostLayout;$('conversion').checked=c.layoutConversionEnabled;ensureToggle(c.layoutConversionToggleUsage);editable=!!c.editable;$('save').disabled=!editable;if(!editable)message('Read-only mode')}catch(e){editable=false;message('Configuration unavailable',true);$('save').disabled=true}}
 function macroOptions(){const values=[[0,'Disabled']];for(let i=1;i<=12;i++)values.push([57+i,'F'+i]);for(let i=13;i<=24;i++)values.push([91+i,'F'+i]);return values}
@@ -81,7 +90,7 @@ let navWasAvailable=false;
 async function pollNavigation(){if(document.hidden){navWasAvailable=false;$('keyboard-status').textContent='Wired keyboard navigation paused';setTimeout(pollNavigation,250);return}try{const n=await json('/api/v1/navigation');$('keyboard-status').textContent=!n.available?'Wired keyboard navigation unavailable':n.capture?'Wired keyboard navigation active: Tab/arrows, Enter/Space, Esc':'Release all keys to start wired keyboard navigation';if(n.capture&&!navWasAvailable&&document.activeElement===document.body)moveFocus(1);navWasAvailable=!!n.capture;if(n.action&&n.action!=='none')navigate(n.action)}catch(e){navWasAvailable=false;$('keyboard-status').textContent='Wired keyboard navigation disconnected'}finally{setTimeout(pollNavigation,80)}}
 $('settings-form').addEventListener('submit',async e=>{e.preventDefault();$('save').disabled=true;message('Saving…');const body={schemaVersion:1,inputLayout:$('input-layout').value,hostLayout:$('host-layout').value,layoutConversionEnabled:$('conversion').checked,layoutConversionToggleUsage:Number($('toggle').value)};try{const r=await fetch('/api/v1/config',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});const result=await r.json();if(!r.ok)throw new Error(result.message||result.error||r.status);message('Saved and applied');await load();await refreshStatus()}catch(err){message('Save failed: '+err.message,true)}finally{$('save').disabled=!editable}});
 $('macro-form').addEventListener('submit',async e=>{e.preventDefault();$('save-macros').disabled=true;macroMessage('Saving…');const body={schemaVersion:1,slots:[0,1,2,3].map(i=>({triggerUsage:Number($('macro-trigger-'+i).value),text:$('macro-text-'+i).value}))};try{const r=await fetch('/api/v1/macros',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});const result=await r.json();if(!r.ok)throw new Error(result.message||result.error||r.status);macroMessage('Saved and applied');await loadMacros()}catch(err){macroMessage('Save failed: '+err.message,true)}finally{$('save-macros').disabled=!editable||!macroAvailable}});
-buildMacroRows();load().then(loadMacros);refreshStatus();pollNavigation();setInterval(refreshStatus,1500);
+buildMacroRows();load().then(loadMacros);refreshStatus();pollNavigation();pollBluetooth();setInterval(refreshStatus,1500);
 </script>
 </body>
 </html>)HTML";
@@ -173,6 +182,15 @@ public:
     navigation_ = &navigation;
     return true;
   }
+
+  bool enableBluetoothManagement(BluetoothTargetController &controller)
+  {
+    if (started_) return false;
+    bluetooth_ = &controller;
+    return true;
+  }
+
+  bool bluetoothManagementEnabled() const { return bluetooth_ != nullptr; }
 
   bool enableMacroEditing(KeyboardMacroSettings &settings,
                           KeyboardMacroSettingsStore &store,
@@ -434,6 +452,15 @@ private:
         sendStatus();
       }
     });
+    server_.on("/api/v1/bluetooth", HTTP_GET, [this]() {
+      if (authorize()) sendBluetooth();
+    });
+    server_.on("/api/v1/bluetooth/label", HTTP_PUT, [this]() {
+      if (authorize()) updateBluetoothLabel();
+    });
+    server_.on("/api/v1/bluetooth/action", HTTP_POST, [this]() {
+      if (authorize()) updateBluetoothAction();
+    });
     server_.on("/healthz", HTTP_GET, [this]() {
       if (!authorize())
       {
@@ -574,6 +601,178 @@ private:
     server_.send(status, "application/json; charset=utf-8", body);
   }
 
+  static const char *bluetoothStatusName(BluetoothTargetStatus value)
+  {
+    switch (value)
+    {
+      case BluetoothTargetStatus::Switching: return "switching";
+      case BluetoothTargetStatus::Pairing: return "pairing";
+      case BluetoothTargetStatus::Connected: return "connected";
+      case BluetoothTargetStatus::Deleting: return "deleting";
+      case BluetoothTargetStatus::Failed: return "failed";
+      default: return "idle";
+    }
+  }
+
+  static const char *bluetoothOperationName(BluetoothProfileOperation value)
+  {
+    switch (value)
+    {
+      case BluetoothProfileOperation::Connecting: return "connect";
+      case BluetoothProfileOperation::Pairing: return "pair";
+      case BluetoothProfileOperation::Cancelling: return "cancel";
+      case BluetoothProfileOperation::Deleting: return "delete";
+      default: return "none";
+    }
+  }
+
+  static const char *bluetoothStateName(BluetoothProfileDisplayState value)
+  {
+    switch (value)
+    {
+      case BluetoothProfileDisplayState::Remembered: return "remembered";
+      case BluetoothProfileDisplayState::Selected: return "selected";
+      case BluetoothProfileDisplayState::Connecting: return "switching";
+      case BluetoothProfileDisplayState::Pairing: return "pairing";
+      case BluetoothProfileDisplayState::Connected: return "connected";
+      case BluetoothProfileDisplayState::Deleting: return "deleting";
+      case BluetoothProfileDisplayState::Failed: return "failed";
+      default: return "empty";
+    }
+  }
+
+  static void appendJsonString(String &out, const char *value)
+  {
+    out += '"';
+    if (value != nullptr)
+    {
+      for (const unsigned char *p = reinterpret_cast<const unsigned char *>(value); *p; ++p)
+      {
+        if (*p == '"' || *p == '\\') { out += '\\'; out += static_cast<char>(*p); }
+        else if (*p == '\n') out += "\\n";
+        else if (*p == '\r') out += "\\r";
+        else if (*p == '\t') out += "\\t";
+        else if (*p >= 0x20) out += static_cast<char>(*p);
+      }
+    }
+    out += '"';
+  }
+
+  void sendBluetooth(int status = 200)
+  {
+    if (bluetooth_ == nullptr)
+    {
+      commonHeaders();
+      server_.send(200, "application/json; charset=utf-8",
+                   "{\"available\":false,\"profiles\":[]}\n");
+      return;
+    }
+    BluetoothTargetSnapshot snapshot;
+    bluetooth_->snapshot(snapshot);
+    String body;
+    body.reserve(1200);
+    body = "{\"available\":true,\"connectedCount\":";
+    body += snapshot.connectedCount;
+    body += ",\"selectedSlot\":"; body += snapshot.selectedSlot;
+    body += ",\"status\":"; appendJsonString(body, bluetoothStatusName(snapshot.status));
+    body += ",\"operation\":"; appendJsonString(body, bluetoothOperationName(snapshot.operation));
+    body += ",\"pairingSecondsRemaining\":"; body += snapshot.pairingSecondsRemaining;
+    body += ",\"error\":"; appendJsonString(body, snapshot.error);
+    body += ",\"profiles\":[";
+    for (size_t i = 0; i < snapshot.profileCount; ++i)
+    {
+      if (i) body += ',';
+      const BluetoothProfileSnapshot &p = snapshot.profiles[i];
+      body += "{\"slot\":"; body += p.slot;
+      body += ",\"label\":"; appendJsonString(body, p.label);
+      body += ",\"address\":"; appendJsonString(body, p.occupied ? p.address : "");
+      body += ",\"occupied\":"; body += p.occupied ? "true" : "false";
+      body += ",\"selected\":"; body += p.selected ? "true" : "false";
+      body += ",\"connected\":"; body += p.connected ? "true" : "false";
+      body += ",\"state\":"; appendJsonString(body, bluetoothStateName(p.state));
+      body += '}';
+    }
+    body += "]}\n";
+    commonHeaders();
+    server_.send(status, "application/json; charset=utf-8", body);
+  }
+
+  static bool decodeLabelBody(const String &body, size_t &slot, String &label)
+  {
+    if (!body.startsWith("{\"slot\":") || !body.endsWith("\"}")) return false;
+    const int comma = body.indexOf(",\"label\":\"");
+    if (comma < 9) return false;
+    const String slotText = body.substring(8, comma);
+    if (slotText.length() != 1 || slotText[0] < '1' || slotText[0] > '3') return false;
+    slot = static_cast<size_t>(slotText[0] - '0');
+    label = "";
+    for (int i = comma + 10; i < static_cast<int>(body.length()) - 2; ++i)
+    {
+      char c = body[i];
+      if (c == '\\')
+      {
+        if (++i >= static_cast<int>(body.length()) - 2) return false;
+        c = body[i];
+        if (c == 'n') c = '\n'; else if (c == 'r') c = '\r'; else if (c == 't') c = '\t';
+        else if (c != '"' && c != '\\') return false;
+      }
+      else if (c == '"' || static_cast<uint8_t>(c) < 0x20) return false;
+      label += c;
+      if (label.length() > BluetoothProfileSnapshot::MaxLabelBytes) return false;
+    }
+    return true;
+  }
+
+  static bool decodeActionBody(const String &body, size_t &slot, String &action,
+                               bool &confirm)
+  {
+    if (!body.startsWith("{\"slot\":") || !body.endsWith("}")) return false;
+    const int actionAt = body.indexOf(",\"action\":\"");
+    const int confirmAt = body.indexOf("\",\"confirm\":", actionAt + 12);
+    if (actionAt < 9 || confirmAt < 0) return false;
+    const String slotText = body.substring(8, actionAt);
+    if (slotText.length() != 1 || slotText[0] < '1' || slotText[0] > '3') return false;
+    slot = static_cast<size_t>(slotText[0] - '0');
+    action = body.substring(actionAt + 11, confirmAt);
+    const String confirmation = body.substring(confirmAt + 12, body.length() - 1);
+    if (confirmation == "true") confirm = true;
+    else if (confirmation == "false") confirm = false;
+    else return false;
+    return action == "connect" || action == "pair" || action == "cancel" || action == "delete";
+  }
+
+  void updateBluetoothLabel()
+  {
+    if (bluetooth_ == nullptr) { sendApiError(404, "not_available", nullptr, "Bluetooth management is not configured"); return; }
+    const String &body = server_.arg("plain");
+    size_t slot = 0; String label;
+    if (body.length() > 128 || !decodeLabelBody(body, slot, label))
+    { sendApiError(400, "invalid_request", "json", "expected slot and a label of at most 24 bytes"); return; }
+    if (!bluetooth_->setSlotLabel(slot, label.c_str()))
+    { sendApiError(bluetooth_->busy() ? 409 : 500, "label_failed", "label", "label could not be saved"); return; }
+    sendBluetooth();
+  }
+
+  void updateBluetoothAction()
+  {
+    if (bluetooth_ == nullptr) { sendApiError(404, "not_available", nullptr, "Bluetooth management is not configured"); return; }
+    const String &body = server_.arg("plain");
+    size_t slot = 0; String action; bool confirm = false;
+    if (body.length() > 128 || !decodeActionBody(body, slot, action, confirm))
+    { sendApiError(400, "invalid_request", "json", "expected slot, action, and confirm"); return; }
+    if ((action == "pair" || action == "delete") && !confirm)
+    { sendApiError(400, "confirmation_required", "confirm", "pair and delete require confirmation"); return; }
+    BluetoothTargetSnapshot before; bluetooth_->snapshot(before);
+    if (action == "connect" && !before.profiles[slot - 1].occupied)
+    { sendApiError(409, "empty_slot", "slot", "an empty profile cannot connect"); return; }
+    bool ok = action == "connect" ? bluetooth_->selectSlot(slot)
+        : action == "pair" ? bluetooth_->pairSlot(slot)
+        : action == "cancel" ? (slot == before.selectedSlot && bluetooth_->cancelPairing())
+                              : bluetooth_->deleteSlot(slot);
+    if (!ok) { sendApiError(bluetooth_->busy() ? 409 : 500, "operation_failed", nullptr, "Bluetooth operation was rejected"); return; }
+    sendBluetooth(action == "connect" || action == "pair" || action == "delete" ? 202 : 200);
+  }
+
   void sendStatus()
   {
     char body[192];
@@ -709,6 +908,7 @@ private:
   KeyboardMacroSettingsStore *macroStore_ = nullptr;
   ESP32KeyBridgeConfig *macroConfig_ = nullptr;
   SettingsNavigationSource *navigation_ = nullptr;
+  BluetoothTargetController *bluetooth_ = nullptr;
   DNSServer dnsServer_;
   WebServer server_;
   char portalUsername_[33] = {};

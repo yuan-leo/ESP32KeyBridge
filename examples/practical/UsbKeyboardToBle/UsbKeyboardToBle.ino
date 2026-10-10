@@ -38,7 +38,10 @@ constexpr char kBluetoothDeviceName[] = "KeyBridge Keyboard";
 
 esp32keybridge::ESP32KeyBridge bridge;
 esp32keybridge::EspUsbHostKeyboardInputAdapter rawKeyboard(usbHost);
-esp32keybridge::EspBleHidTargetController bluetoothTargets(ble, kBluetoothDeviceName);
+esp32keybridge::PreferencesBluetoothProfileStorage bluetoothProfileNvs;
+esp32keybridge::BluetoothProfileSettingsStore bluetoothProfileStore(bluetoothProfileNvs);
+esp32keybridge::EspBleHidTargetController bluetoothTargets(
+    ble, bluetoothProfileStore, kBluetoothDeviceName);
 esp32keybridge::SettingsNavigationInputAdapter settingsKeyboard(rawKeyboard);
 esp32keybridge::BluetoothHotkeyInputAdapter keyboard(settingsKeyboard, bluetoothTargets);
 esp32keybridge::EspBleHidOutputAdapter host(ble);
@@ -91,6 +94,11 @@ void setup()
   if (!ble.begin(bleConfig))
   {
     Serial.printf("BLE start failed: %s\n", ble.lastErrorDetail().c_str());
+    return;
+  }
+  if (!bluetoothTargets.loadProfileSettings())
+  {
+    Serial.println("Bluetooth profile settings could not be loaded");
     return;
   }
   if (!bluetoothTargets.applySelectedSlotName())
@@ -162,6 +170,11 @@ void setup()
   if (!settingsWeb.enableKeyboardNavigation(settingsKeyboard))
   {
     Serial.println("Settings keyboard navigation could not be enabled");
+    return;
+  }
+  if (!settingsWeb.enableBluetoothManagement(bluetoothTargets))
+  {
+    Serial.println("Bluetooth management could not be enabled");
     return;
   }
   esp32keybridge::SettingsAccessPointConfig accessPoint;

@@ -15,6 +15,8 @@ def test_required_project_files_exist():
         "src/ESP32KeyBridge.h",
         "src/ESP32KeyBridge.cpp",
         "src/ESP32KeyBridgeBluetooth.h",
+        "src/ESP32KeyBridgeBluetoothSettings.h",
+        "src/ESP32KeyBridgeBluetoothSettings.cpp",
         "src/ESP32KeyBridgeMacroSettings.h",
         "src/ESP32KeyBridgeMacroSettings.cpp",
         "src/ESP32KeyBridgeMacroSettingsJson.h",
@@ -103,9 +105,12 @@ def test_phase7_settings_portal_is_offline_authenticated_and_bounded():
     assert 'server_.on("/api/v1/macros", HTTP_GET' in web
     assert 'server_.on("/api/v1/macros", HTTP_PUT' in web
     assert 'server_.on("/api/v1/status", HTTP_GET' in web
+    assert 'server_.on("/api/v1/bluetooth", HTTP_GET' in web
+    assert 'server_.on("/api/v1/bluetooth/label", HTTP_PUT' in web
+    assert 'server_.on("/api/v1/bluetooth/action", HTTP_POST' in web
     assert 'server_.on("/healthz", HTTP_GET' in web
-    assert "HTTP_POST" not in web
-    assert web.count("HTTP_PUT") == 2
+    assert web.count("HTTP_POST") == 1
+    assert web.count("HTTP_PUT") == 3
     assert "https://" not in web
     assert 'src="http' not in web
     assert 'href="http' not in web
@@ -119,3 +124,23 @@ def test_phase7_settings_portal_is_offline_authenticated_and_bounded():
     assert "username.equalsConstantTime(portalUsername_)" in web
     assert 'server_.requestAuthentication(DIGEST_AUTH, "ESP32 KeyBridge"' in web
     assert "BASIC_AUTH" not in web
+    assert "Bluetooth Profiles" in web
+    assert "Cancel Pairing" in web
+    assert "Pair / Replace" in web
+    assert "setTimeout(pollBluetooth,1000)" in web
+    assert "aria-live=\"polite\"" in web
+
+
+def test_usb_keyboard_to_ble_wires_persistent_profile_management():
+    sketch = (ROOT / "examples/practical/UsbKeyboardToBle/UsbKeyboardToBle.ino").read_text(
+        encoding="utf-8"
+    )
+    controller = (ROOT / "src/ESP32KeyBridgeEspBle.h").read_text(encoding="utf-8")
+
+    assert "PreferencesBluetoothProfileStorage" in sketch
+    assert "BluetoothProfileSettingsStore" in sketch
+    assert "loadProfileSettings" in sketch
+    assert "enableBluetoothManagement" in sketch
+    assert "BluetoothProfileSettingsStore *profileStore_" in controller
+    assert "bool cancelPairing() override" in controller
+    assert "bool deleteSlot(size_t slot) override" in controller
