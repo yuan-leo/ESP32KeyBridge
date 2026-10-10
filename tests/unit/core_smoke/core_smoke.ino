@@ -1,5 +1,6 @@
 #include <ESP32KeyBridge.h>
 #include <ESP32KeyBridgeBluetooth.h>
+#include <ESP32KeyBridgeBluetoothSettings.h>
 #include <ESP32KeyBridgeMacroSettings.h>
 #include <ESP32KeyBridgeMacroSettingsJson.h>
 #include <ESP32KeyBridgeSettings.h>
@@ -678,6 +679,65 @@ static void test_bluetooth_slot_names_append_selected_slot()
   assert(!esp32keybridge::formatBluetoothSlotName(
       "KeyBridge Keyboard", 1, tooSmall, sizeof(tooSmall)));
   assert(tooSmall[0] == '\0');
+}
+
+class FakeBluetoothProfileStorage : public esp32keybridge::BluetoothProfileBlobStorage
+{
+public:
+  esp32keybridge::SettingsBlobReadStatus read(uint8_t slot, uint8_t *data,
+                                               size_t capacity, size_t &size) override
+  {
+    size = lengths[slot];
+    if (!present[slot]) return esp32keybridge::SettingsBlobReadStatus::NotFound;
+    if (size > capacity) return esp32keybridge::SettingsBlobReadStatus::Read;
+    memcpy(data, bytes[slot], size);
+    return esp32keybridge::SettingsBlobReadStatus::Read;
+  }
+  bool write(uint8_t slot, const uint8_t *data, size_t size) override
+  {
+    if (slot > 1 || size > sizeof(bytes[slot])) return false;
+    memcpy(bytes[slot], data, size);
+    lengths[slot] = size;
+    present[slot] = true;
+    return true;
+  }
+  bool erase(uint8_t slot) override
+  {
+    if (slot > 1) return false;
+    present[slot] = false;
+    lengths[slot] = 0;
+    return true;
+  }
+  uint8_t bytes[2][esp32keybridge::BluetoothProfileSettingsCodec::EncodedSize] = {};
+  size_t lengths[2] = {};
+  bool present[2] = {};
+};
+
+static void test_bluetooth_profile_settings_persist_labels_and_addresses()
+{
+  FakeBluetoothProfileStorage storage;
+  esp32keybridge::BluetoothProfileSettingsStore store(storage);
+  esp32keybridge::BluetoothProfileRegistry profiles;
+  assert(profiles.selectedSlot() == 1);
+  assert(profiles.select(3));
+  assert(profiles.assign(2, "aa:bb:cc:dd:ee:ff", 1));
+  assert(profiles.setLabel(2, "Office PC"));
+  assert(!profiles.setLabel(2, "1234567890123456789012345"));
+  assert(store.save(profiles));
+
+  esp32keybridge::BluetoothProfileRegistry loaded;
+  assert(store.loadOrDefault(loaded) ==
+         esp32keybridge::BluetoothProfileSettingsLoadStatus::Loaded);
+  assert(loaded.selectedSlot() == 3);
+  assert(loaded.profile(2).occupied);
+  assert(strcmp(loaded.profile(2).address, "AA:BB:CC:DD:EE:FF") == 0);
+  assert(strcmp(loaded.profile(2).label, "Office PC") == 0);
+
+  storage.bytes[0][0] ^= 0xff;
+  storage.bytes[1][0] ^= 0xff;
+  assert(store.loadOrDefault(loaded) ==
+         esp32keybridge::BluetoothProfileSettingsLoadStatus::DefaultsInvalidSettings);
+  assert(loaded.selectedSlot() == 1);
 }
 
 static void test_settings_navigation_captures_and_suppresses_until_release()
@@ -2852,6 +2912,7 @@ static void runAllTests()
   run("dvorak_layout_variants_map_letters_and_shortcuts", test_dvorak_layout_variants_map_letters_and_shortcuts);
   run("dvorak_modifier_policy_controls_conversion", test_dvorak_modifier_policy_controls_conversion);
   run("bluetooth_slot_names_append_selected_slot", test_bluetooth_slot_names_append_selected_slot);
+  run("bluetooth_profile_settings_persist_labels_and_addresses", test_bluetooth_profile_settings_persist_labels_and_addresses);
   run("settings_navigation_captures_and_suppresses_until_release", test_settings_navigation_captures_and_suppresses_until_release);
   run("settings_navigation_actions_and_bounded_queue", test_settings_navigation_actions_and_bounded_queue);
   run("key_identity_is_kind_plus_code", test_key_identity_is_kind_plus_code);

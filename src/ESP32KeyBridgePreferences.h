@@ -7,6 +7,7 @@
 #include <Preferences.h>
 
 #include "ESP32KeyBridgeMacroSettings.h"
+#include "ESP32KeyBridgeBluetoothSettings.h"
 #include "ESP32KeyBridgeSettings.h"
 
 namespace esp32keybridge
@@ -169,6 +170,65 @@ private:
   static const char *keyFor(uint8_t slot)
   {
     return slot == 0 ? "macro_a" : "macro_b";
+  }
+};
+
+class PreferencesBluetoothProfileStorage : public BluetoothProfileBlobStorage
+{
+public:
+  SettingsBlobReadStatus read(uint8_t slot, uint8_t *data, size_t capacity,
+                              size_t &size) override
+  {
+    size = 0;
+    if (slot > 1 || data == nullptr) return SettingsBlobReadStatus::Error;
+    Preferences preferences;
+    if (!preferences.begin(PreferencesLayoutSettingsStorage::Namespace, false))
+      return SettingsBlobReadStatus::Error;
+    const size_t stored = preferences.getBytesLength(keyFor(slot));
+    if (stored == 0)
+    {
+      preferences.end();
+      return SettingsBlobReadStatus::NotFound;
+    }
+    if (stored > capacity)
+    {
+      size = stored;
+      preferences.end();
+      return SettingsBlobReadStatus::Read;
+    }
+    size = preferences.getBytes(keyFor(slot), data, stored);
+    preferences.end();
+    return size == stored ? SettingsBlobReadStatus::Read
+                          : SettingsBlobReadStatus::Error;
+  }
+
+  bool write(uint8_t slot, const uint8_t *data, size_t size) override
+  {
+    if (slot > 1 || data == nullptr || size == 0) return false;
+    Preferences preferences;
+    if (!preferences.begin(PreferencesLayoutSettingsStorage::Namespace, false))
+      return false;
+    const bool ok = preferences.putBytes(keyFor(slot), data, size) == size;
+    preferences.end();
+    return ok;
+  }
+
+  bool erase(uint8_t slot) override
+  {
+    if (slot > 1) return false;
+    Preferences preferences;
+    if (!preferences.begin(PreferencesLayoutSettingsStorage::Namespace, false))
+      return false;
+    const char *key = keyFor(slot);
+    const bool ok = !preferences.isKey(key) || preferences.remove(key);
+    preferences.end();
+    return ok;
+  }
+
+private:
+  static const char *keyFor(uint8_t slot)
+  {
+    return slot == 0 ? "btprof_a" : "btprof_b";
   }
 };
 
