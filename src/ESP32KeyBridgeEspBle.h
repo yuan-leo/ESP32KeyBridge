@@ -504,7 +504,30 @@ public:
 
   bool resetBluetooth() override
   {
-    const bool stopped = forceDisconnect();
+    ble_.advertising().stop();
+    reconnectDeadline_.cancel();
+    pending_ = Pending::None;
+    suppressReconnect_ = true;
+    clearError();
+    if (peripheralConnectionId_ != 0)
+    {
+      resetAfterDisconnect_ = true;
+      forceStopDisconnect_ = true;
+      operation_ = BluetoothProfileOperation::Cancelling;
+      status_ = BluetoothTargetStatus::Switching;
+      if (!ble_.disconnect(peripheralConnectionId_))
+      {
+        resetAfterDisconnect_ = false;
+        forceStopDisconnect_ = false;
+        return fail("disconnect_failed");
+      }
+      return true;
+    }
+    return completeBluetoothReset();
+  }
+
+  bool completeBluetoothReset()
+  {
     const bool bondsCleared = ble_.deleteAllBonds();
     const bool profilesCleared = profileStore_ == nullptr || profileStore_->clear();
     registry_.reset();
@@ -515,9 +538,10 @@ public:
       slotUsed_[i] = false;
       slots_[i] = EspBleBond();
     }
-    if (!stopped) return false;
     if (!bondsCleared) return fail("bond_delete_failed");
     if (!profilesCleared) return fail("profile_storage_write_failed");
+    operation_ = BluetoothProfileOperation::None;
+    status_ = BluetoothTargetStatus::Idle;
     return true;
   }
 
@@ -696,6 +720,13 @@ private:
     peripheralConnectionId_ = 0;
     peripheralAddress_ = "";
     reconnectDeadline_.cancel();
+    if (resetAfterDisconnect_)
+    {
+      resetAfterDisconnect_ = false;
+      forceStopDisconnect_ = false;
+      completeBluetoothReset();
+      return;
+    }
     if (forceStopDisconnect_ || suppressReconnect_)
     {
       forceStopDisconnect_ = false;
@@ -770,6 +801,9 @@ private:
     if (status_ != BluetoothTargetStatus::Pairing ||
         event.connection.id != pairingConnectionId_)
     {
+      if (event.success && event.connection.bonded &&
+          event.connection.id == peripheralConnectionId_)
+        requestHostName();
       return;
     }
     if (event.success && event.connection.bonded)
@@ -929,6 +963,7 @@ private:
   bool profilesLoaded_ = false;
   bool cancellingDisconnect_ = false;
   bool forceStopDisconnect_ = false;
+  bool resetAfterDisconnect_ = false;
   bool suppressReconnect_ = false;
   size_t deleteSlot_ = 0;
   size_t reconnectSlot_ = 0;
