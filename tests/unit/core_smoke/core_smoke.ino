@@ -6,6 +6,7 @@
 #include <ESP32KeyBridgeSettings.h>
 #include <ESP32KeyBridgeSettingsJson.h>
 #include <ESP32KeyBridgeSettingsNavigation.h>
+#include <ESP32KeyBridgeReset.h>
 #include <ESP32KeyBridgeSerial.h>
 #if defined(ARDUINO_ARCH_ESP32)
 #include <ESP32KeyBridgePreferences.h>
@@ -149,7 +150,7 @@ public:
 
   bool erase(uint8_t slot) override
   {
-    if (slot > 1)
+    if (slot > 1 || eraseFails[slot])
     {
       return false;
     }
@@ -171,6 +172,7 @@ public:
   bool present[2] = {};
   bool readFails[2] = {};
   bool writeFails[2] = {};
+  bool eraseFails[2] = {};
 };
 
 static void test_macro_settings_validate_apply_and_replace()
@@ -952,7 +954,7 @@ public:
   bool deleteSlot(size_t) override { return true; }
   bool setSlotLabel(size_t, const char *) override { return true; }
   bool forceDisconnect() override { ++forceDisconnectCalls; return true; }
-  bool resetBluetooth() override { ++resetBluetoothCalls; return true; }
+  bool resetBluetooth() override { ++resetBluetoothCalls; return resetAccept; }
   bool busy() const override { return false; }
 
   size_t slots = 3;
@@ -964,6 +966,7 @@ public:
   size_t resetBluetoothCalls = 0;
   uint32_t now = 0;
   bool accept = true;
+  bool resetAccept = true;
   esp32keybridge::BluetoothTargetSnapshot snapshotValue;
   esp32keybridge::BluetoothTargetStatus state =
       esp32keybridge::BluetoothTargetStatus::Idle;
@@ -990,6 +993,49 @@ static void test_bluetooth_operation_deadline_handles_wraparound()
   assert(target.resetBluetooth());
   assert(target.forceDisconnectCalls == 1);
   assert(target.resetBluetoothCalls == 1);
+}
+
+static void test_settings_reset_coordinator_scopes_and_failures()
+{
+  FakeBluetoothTarget target;
+  FakeLayoutSettingsStorage layoutStorage;
+  FakeMacroSettingsStorage macroStorage;
+  esp32keybridge::KeyboardLayoutSettingsStore layoutStore(layoutStorage);
+  esp32keybridge::KeyboardMacroSettingsStore macroStore(macroStorage);
+  esp32keybridge::SettingsResetCoordinator reset(target);
+  reset.enableLayoutReset(layoutStore);
+  reset.enableMacroReset(macroStore);
+  esp32keybridge::SettingsResetError error;
+
+  layoutStorage.present[0] = true;
+  macroStorage.present[0] = true;
+  assert(reset.reset(esp32keybridge::SettingsResetScope::BluetoothOnly, &error));
+  assert(reset.inProgress());
+  assert(target.resetBluetoothCalls == 1);
+  assert(layoutStorage.present[0] && macroStorage.present[0]);
+  assert(!reset.reset(esp32keybridge::SettingsResetScope::Everything, &error));
+  assert(error.code == esp32keybridge::SettingsResetErrorCode::AlreadyInProgress);
+  assert(target.resetBluetoothCalls == 1);
+  reset.finish();
+
+  assert(reset.reset(esp32keybridge::SettingsResetScope::Everything, &error));
+  assert(!layoutStorage.present[0] && !macroStorage.present[0]);
+  reset.finish();
+
+  target.resetAccept = false;
+  assert(!reset.reset(esp32keybridge::SettingsResetScope::BluetoothOnly, &error));
+  assert(error.code == esp32keybridge::SettingsResetErrorCode::BluetoothFailed);
+  assert(!reset.inProgress());
+  target.resetAccept = true;
+
+  layoutStorage.eraseFails[0] = true;
+  assert(!reset.reset(esp32keybridge::SettingsResetScope::Everything, &error));
+  assert(error.code == esp32keybridge::SettingsResetErrorCode::LayoutStorageFailed);
+  layoutStorage.eraseFails[0] = false;
+
+  macroStorage.eraseFails[0] = true;
+  assert(!reset.reset(esp32keybridge::SettingsResetScope::Everything, &error));
+  assert(error.code == esp32keybridge::SettingsResetErrorCode::MacroStorageFailed);
 }
 
 static void test_bluetooth_target_hotkeys_are_consumed()
@@ -3004,6 +3050,7 @@ static void runAllTests()
   run("bluetooth_profile_settings_persist_labels_and_addresses", test_bluetooth_profile_settings_persist_labels_and_addresses);
   run("bluetooth_profile_settings_migrate_version_1", test_bluetooth_profile_settings_migrate_version_1);
   run("bluetooth_operation_deadline_handles_wraparound", test_bluetooth_operation_deadline_handles_wraparound);
+  run("settings_reset_coordinator_scopes_and_failures", test_settings_reset_coordinator_scopes_and_failures);
   run("settings_navigation_captures_and_suppresses_until_release", test_settings_navigation_captures_and_suppresses_until_release);
   run("settings_navigation_actions_and_bounded_queue", test_settings_navigation_actions_and_bounded_queue);
   run("key_identity_is_kind_plus_code", test_key_identity_is_kind_plus_code);

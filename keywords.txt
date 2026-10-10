@@ -185,6 +185,14 @@ setNavigationCaptureEnabled	KEYWORD2
 navigationCaptureEnabled	KEYWORD2
 popNavigationEvent	KEYWORD2
 navigationOverflowCount	KEYWORD2
+SettingsResetCoordinator	KEYWORD1
+SettingsResetScope	KEYWORD1
+SettingsResetError	KEYWORD1
+SettingsResetErrorCode	KEYWORD1
+enableLayoutReset	KEYWORD2
+enableMacroReset	KEYWORD2
+resetBluetooth	KEYWORD2
+forceDisconnect	KEYWORD2
 
 MaxKeys	LITERAL1
 MaxInputs	LITERAL1

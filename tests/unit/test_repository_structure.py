@@ -27,6 +27,8 @@ def test_required_project_files_exist():
         "src/ESP32KeyBridgeSettingsJson.cpp",
         "src/ESP32KeyBridgeSettingsNavigation.h",
         "src/ESP32KeyBridgePreferences.h",
+        "src/ESP32KeyBridgeReset.h",
+        "src/ESP32KeyBridgeReset.cpp",
         "src/ESP32KeyBridgeWeb.h",
         "src/ESP32KeyBridgeEspBle.h",
         "examples/README.ja.md",
