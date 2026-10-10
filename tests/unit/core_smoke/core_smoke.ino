@@ -7,6 +7,7 @@
 #include <ESP32KeyBridgeSettingsJson.h>
 #include <ESP32KeyBridgeSettingsNavigation.h>
 #include <ESP32KeyBridgeReset.h>
+#include <ESP32KeyBridgeStatusLed.h>
 #include <ESP32KeyBridgeSerial.h>
 #if defined(ARDUINO_ARCH_ESP32)
 #include <ESP32KeyBridgePreferences.h>
@@ -1036,6 +1037,50 @@ static void test_settings_reset_coordinator_scopes_and_failures()
   macroStorage.eraseFails[0] = true;
   assert(!reset.reset(esp32keybridge::SettingsResetScope::Everything, &error));
   assert(error.code == esp32keybridge::SettingsResetErrorCode::MacroStorageFailed);
+}
+
+static void test_bluetooth_status_led_legend_frames()
+{
+  using namespace esp32keybridge;
+  BluetoothTargetSnapshot snapshot;
+  snapshot.selectedSlot = 1;
+  assert(bluetoothStatusLedFrame(snapshot, 0, false, false).pattern ==
+         BluetoothStatusLedPattern::Off);
+  assert(bluetoothStatusLedFrame(snapshot, 0, true, false).color == RgbColor(32, 32, 32));
+  assert(bluetoothStatusLedFrame(snapshot, 200, true, false).color == RgbColor(32, 0, 0));
+  assert(bluetoothStatusLedFrame(snapshot, 400, true, false).color == RgbColor(0, 32, 0));
+  assert(bluetoothStatusLedFrame(snapshot, 600, true, false).color == RgbColor(0, 0, 32));
+
+  snapshot.status = BluetoothTargetStatus::Connected;
+  assert(bluetoothStatusLedFrame(snapshot, 800, true, false).color == RgbColor(0, 0, 32));
+  snapshot.selectedSlot = 2;
+  assert(bluetoothStatusLedFrame(snapshot, 800, true, false).color == RgbColor(0, 32, 0));
+  snapshot.selectedSlot = 3;
+  assert(bluetoothStatusLedFrame(snapshot, 800, true, false).color == RgbColor(32, 0, 32));
+
+  snapshot.status = BluetoothTargetStatus::Switching;
+  snapshot.operation = BluetoothProfileOperation::Connecting;
+  const BluetoothStatusLedFrame dim = bluetoothStatusLedFrame(snapshot, 1000, true, false);
+  const BluetoothStatusLedFrame bright = bluetoothStatusLedFrame(snapshot, 1800, true, false);
+  assert(dim.pattern == BluetoothStatusLedPattern::Searching);
+  assert(bright.color.red > dim.color.red && bright.color.blue > dim.color.blue);
+
+  snapshot.status = BluetoothTargetStatus::Pairing;
+  snapshot.operation = BluetoothProfileOperation::Pairing;
+  assert(bluetoothStatusLedFrame(snapshot, 900, true, false).color == RgbColor(32, 32, 32));
+  assert(bluetoothStatusLedFrame(snapshot, 1200, true, false).color == RgbColor(32, 0, 32));
+
+  snapshot.status = BluetoothTargetStatus::Idle;
+  snapshot.operation = BluetoothProfileOperation::None;
+  assert(bluetoothStatusLedFrame(snapshot, 3000, true, false).color == RgbColor(32, 0, 32));
+  assert(bluetoothStatusLedFrame(snapshot, 3120, true, false).color == RgbColor());
+
+  assert(bluetoothStatusLedFrame(snapshot, 900, true, true).color == RgbColor(32, 12, 0));
+  assert(bluetoothStatusLedFrame(snapshot, 1050, true, true).color == RgbColor());
+  snapshot.status = BluetoothTargetStatus::Failed;
+  assert(bluetoothStatusLedFrame(snapshot, 900, true, false).color == RgbColor(32, 0, 0));
+  assert(bluetoothStatusLedFrame(snapshot, 1050, true, false).color == RgbColor());
+  assert(strcmp(bluetoothStatusLedPatternName(BluetoothStatusLedPattern::Pairing), "pairing") == 0);
 }
 
 static void test_bluetooth_target_hotkeys_are_consumed()
@@ -3051,6 +3096,7 @@ static void runAllTests()
   run("bluetooth_profile_settings_migrate_version_1", test_bluetooth_profile_settings_migrate_version_1);
   run("bluetooth_operation_deadline_handles_wraparound", test_bluetooth_operation_deadline_handles_wraparound);
   run("settings_reset_coordinator_scopes_and_failures", test_settings_reset_coordinator_scopes_and_failures);
+  run("bluetooth_status_led_legend_frames", test_bluetooth_status_led_legend_frames);
   run("settings_navigation_captures_and_suppresses_until_release", test_settings_navigation_captures_and_suppresses_until_release);
   run("settings_navigation_actions_and_bounded_queue", test_settings_navigation_actions_and_bounded_queue);
   run("key_identity_is_kind_plus_code", test_key_identity_is_kind_plus_code);

@@ -28,6 +28,7 @@
 #include <ESP32KeyBridgePreferences.h>
 #include <ESP32KeyBridgeSettings.h>
 #include <ESP32KeyBridgeSettingsNavigation.h>
+#include <ESP32KeyBridgeStatusLed.h>
 #include <ESP32KeyBridgeWeb.h>
 #include <EspBle.h>
 #include <EspUsbHost.h>
@@ -53,10 +54,43 @@ esp32keybridge::KeyboardMacroSettings macroSettings;
 esp32keybridge::PreferencesMacroSettingsStorage macroNvs;
 esp32keybridge::KeyboardMacroSettingsStore macroStore(macroNvs);
 esp32keybridge::Esp32S3SettingsWebServer settingsWeb(layoutSettings, bridge);
+bool bluetoothAvailable = false;
+
+void writeBluetoothStatusLed(uint32_t patternTime, bool available)
+{
+#if defined(RGB_BUILTIN)
+  // HW-678 v0.0.0 maps the programmable WS2812 RGB_BUILTIN to GPIO 48.
+  // PWR, TX, and RX are separate hardware LEDs and are intentionally untouched.
+  esp32keybridge::BluetoothTargetSnapshot snapshot;
+  bluetoothTargets.snapshot(snapshot);
+  const esp32keybridge::BluetoothStatusLedFrame frame =
+      esp32keybridge::bluetoothStatusLedFrame(snapshot, patternTime, available, false);
+  static esp32keybridge::RgbColor previous;
+  static bool havePrevious = false;
+  if (!havePrevious || frame.color != previous)
+  {
+    rgbLedWrite(RGB_BUILTIN, frame.color.red, frame.color.green, frame.color.blue);
+    previous = frame.color;
+    havePrevious = true;
+  }
+#else
+  (void)patternTime;
+  (void)available;
+#endif
+}
 
 void setup()
 {
   Serial.begin(115200);
+
+  // Visible boot self-test: white, red, green, blue. The normal patterns use
+  // low brightness after this sequence.
+  const uint32_t selfTestStarted = millis();
+  while (static_cast<uint32_t>(millis() - selfTestStarted) < 800)
+  {
+    writeBluetoothStatusLed(static_cast<uint32_t>(millis() - selfTestStarted), true);
+    delay(10);
+  }
 
   // Keep these diagnostics in the reference sketch: USB host failures are
   // otherwise indistinguishable from BLE pairing failures at bring-up time.
@@ -96,6 +130,7 @@ void setup()
     Serial.printf("BLE start failed: %s\n", ble.lastErrorDetail().c_str());
     return;
   }
+  bluetoothAvailable = true;
   if (!bluetoothTargets.loadProfileSettings())
   {
     Serial.println("Bluetooth profile settings could not be loaded");
@@ -207,5 +242,6 @@ void loop()
   ble.update();
   bridge.update();
   settingsWeb.update();
+  writeBluetoothStatusLed(millis(), bluetoothAvailable);
   delay(1);
 }

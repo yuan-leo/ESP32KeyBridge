@@ -189,10 +189,15 @@ SettingsResetCoordinator	KEYWORD1
 SettingsResetScope	KEYWORD1
 SettingsResetError	KEYWORD1
 SettingsResetErrorCode	KEYWORD1
+RgbColor	KEYWORD1
+BluetoothStatusLedPattern	KEYWORD1
+BluetoothStatusLedFrame	KEYWORD1
 enableLayoutReset	KEYWORD2
 enableMacroReset	KEYWORD2
 resetBluetooth	KEYWORD2
 forceDisconnect	KEYWORD2
+bluetoothStatusLedFrame	KEYWORD2
+bluetoothStatusLedPatternName	KEYWORD2
 
 MaxKeys	LITERAL1
 MaxInputs	LITERAL1

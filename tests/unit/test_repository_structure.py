@@ -29,6 +29,7 @@ def test_required_project_files_exist():
         "src/ESP32KeyBridgePreferences.h",
         "src/ESP32KeyBridgeReset.h",
         "src/ESP32KeyBridgeReset.cpp",
+        "src/ESP32KeyBridgeStatusLed.h",
         "src/ESP32KeyBridgeWeb.h",
         "src/ESP32KeyBridgeEspBle.h",
         "examples/README.ja.md",
@@ -165,3 +166,18 @@ def test_ble_profile_recovery_has_deadlines_reset_and_remote_name_discovery():
     assert "result.connectionId != peripheralConnectionId_" in controller
     assert "equalsIgnoreCase(registry_.profile(selectedSlot_).address)" in controller
     assert "class BluetoothOperationDeadline" in interface
+
+
+def test_hw678_status_led_uses_only_the_gpio48_rgb_led():
+    led = (ROOT / "src/ESP32KeyBridgeStatusLed.h").read_text(encoding="utf-8")
+    sketch = (ROOT / "examples/practical/UsbKeyboardToBle/UsbKeyboardToBle.ino").read_text(
+        encoding="utf-8"
+    )
+
+    for pattern in ["Boot", "Connected", "Searching", "Pairing", "Disconnected", "Destructive", "Error"]:
+        assert pattern in led
+    assert "MaximumChannel = 32" in led
+    assert "RGB_BUILTIN" in sketch
+    assert "GPIO 48" in sketch
+    assert "rgbLedWrite(RGB_BUILTIN" in sketch
+    assert "PWR" in sketch and "TX" in sketch and "RX" in sketch
