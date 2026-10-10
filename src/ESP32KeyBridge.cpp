@@ -47,6 +47,74 @@ const KeyboardLayoutEntry kEnUsEntries[] = {
     {U(KeyboardUsage::Slash), '/', '?', false},
 };
 
+// ANSI US Dvorak. The HID usages remain physical key positions; the table
+// describes the characters printed by the Dvorak arrangement.
+const KeyboardLayoutEntry kDvorakEntries[] = {
+    {U(KeyboardUsage::A), 'a', 'A', true}, {U(KeyboardUsage::B), 'x', 'X', true},
+    {U(KeyboardUsage::C), 'j', 'J', true}, {U(KeyboardUsage::D), 'e', 'E', true},
+    {U(KeyboardUsage::E), '.', '>', false}, {U(KeyboardUsage::F), 'u', 'U', true},
+    {U(KeyboardUsage::G), 'i', 'I', true}, {U(KeyboardUsage::H), 'd', 'D', true},
+    {U(KeyboardUsage::I), 'c', 'C', true}, {U(KeyboardUsage::J), 'h', 'H', true},
+    {U(KeyboardUsage::K), 't', 'T', true}, {U(KeyboardUsage::L), 'n', 'N', true},
+    {U(KeyboardUsage::M), 'm', 'M', true}, {U(KeyboardUsage::N), 'b', 'B', true},
+    {U(KeyboardUsage::O), 'r', 'R', true}, {U(KeyboardUsage::P), 'l', 'L', true},
+    {U(KeyboardUsage::Q), '\'', '"', false}, {U(KeyboardUsage::R), 'p', 'P', true},
+    {U(KeyboardUsage::S), 'o', 'O', true}, {U(KeyboardUsage::T), 'y', 'Y', true},
+    {U(KeyboardUsage::U), 'g', 'G', true}, {U(KeyboardUsage::V), 'k', 'K', true},
+    {U(KeyboardUsage::W), ',', '<', false}, {U(KeyboardUsage::X), 'q', 'Q', true},
+    {U(KeyboardUsage::Y), 'f', 'F', true}, {U(KeyboardUsage::Z), ';', ':', false},
+    {U(KeyboardUsage::Digit1), '1', '!', false}, {U(KeyboardUsage::Digit2), '2', '@', false},
+    {U(KeyboardUsage::Digit3), '3', '#', false}, {U(KeyboardUsage::Digit4), '4', '$', false},
+    {U(KeyboardUsage::Digit5), '5', '%', false}, {U(KeyboardUsage::Digit6), '6', '^', false},
+    {U(KeyboardUsage::Digit7), '7', '&', false}, {U(KeyboardUsage::Digit8), '8', '*', false},
+    {U(KeyboardUsage::Digit9), '9', '(', false}, {U(KeyboardUsage::Digit0), '0', ')', false},
+    {U(KeyboardUsage::Space), ' ', 0, false},
+    {U(KeyboardUsage::Minus), '[', '{', false},
+    {U(KeyboardUsage::Equal), ']', '}', false},
+    {U(KeyboardUsage::LeftBracket), '/', '?', false},
+    {U(KeyboardUsage::RightBracket), '=', '+', false},
+    {U(KeyboardUsage::Backslash), '\\', '|', false},
+    {U(KeyboardUsage::Semicolon), 's', 'S', true},
+    {U(KeyboardUsage::Quote), '-', '_', false},
+    {U(KeyboardUsage::Grave), '`', '~', false},
+    {U(KeyboardUsage::Comma), 'w', 'W', true},
+    {U(KeyboardUsage::Period), 'v', 'V', true},
+    {U(KeyboardUsage::Slash), 'z', 'Z', true},
+};
+
+const KeyboardLayoutEntry kDvorakIuEntries[] = {
+    {U(KeyboardUsage::A), 'a', 'A', true}, {U(KeyboardUsage::B), 'x', 'X', true},
+    {U(KeyboardUsage::C), 'j', 'J', true}, {U(KeyboardUsage::D), 'e', 'E', true},
+    {U(KeyboardUsage::E), '.', '>', false}, {U(KeyboardUsage::F), 'i', 'I', true},
+    {U(KeyboardUsage::G), 'u', 'U', true}, {U(KeyboardUsage::H), 'd', 'D', true},
+    {U(KeyboardUsage::I), 'c', 'C', true}, {U(KeyboardUsage::J), 'h', 'H', true},
+    {U(KeyboardUsage::K), 't', 'T', true}, {U(KeyboardUsage::L), 'n', 'N', true},
+    {U(KeyboardUsage::M), 'm', 'M', true}, {U(KeyboardUsage::N), 'b', 'B', true},
+    {U(KeyboardUsage::O), 'r', 'R', true}, {U(KeyboardUsage::P), 'l', 'L', true},
+    {U(KeyboardUsage::Q), '\'', '"', false}, {U(KeyboardUsage::R), 'p', 'P', true},
+    {U(KeyboardUsage::S), 'o', 'O', true}, {U(KeyboardUsage::T), 'y', 'Y', true},
+    {U(KeyboardUsage::U), 'g', 'G', true}, {U(KeyboardUsage::V), 'k', 'K', true},
+    {U(KeyboardUsage::W), ',', '<', false}, {U(KeyboardUsage::X), 'q', 'Q', true},
+    {U(KeyboardUsage::Y), 'f', 'F', true}, {U(KeyboardUsage::Z), ';', ':', false},
+    {U(KeyboardUsage::Digit1), '1', '!', false}, {U(KeyboardUsage::Digit2), '2', '@', false},
+    {U(KeyboardUsage::Digit3), '3', '#', false}, {U(KeyboardUsage::Digit4), '4', '$', false},
+    {U(KeyboardUsage::Digit5), '5', '%', false}, {U(KeyboardUsage::Digit6), '6', '^', false},
+    {U(KeyboardUsage::Digit7), '7', '&', false}, {U(KeyboardUsage::Digit8), '8', '*', false},
+    {U(KeyboardUsage::Digit9), '9', '(', false}, {U(KeyboardUsage::Digit0), '0', ')', false},
+    {U(KeyboardUsage::Space), ' ', 0, false},
+    {U(KeyboardUsage::Minus), '[', '{', false},
+    {U(KeyboardUsage::Equal), ']', '}', false},
+    {U(KeyboardUsage::LeftBracket), '/', '?', false},
+    {U(KeyboardUsage::RightBracket), '=', '+', false},
+    {U(KeyboardUsage::Backslash), '\\', '|', false},
+    {U(KeyboardUsage::Semicolon), 's', 'S', true},
+    {U(KeyboardUsage::Quote), '-', '_', false},
+    {U(KeyboardUsage::Grave), '`', '~', false},
+    {U(KeyboardUsage::Comma), 'w', 'W', true},
+    {U(KeyboardUsage::Period), 'v', 'V', true},
+    {U(KeyboardUsage::Slash), 'z', 'Z', true},
+};
+
 // JIS layout as interpreted by a ja_jp host (Windows 106/109). The Grave key
 // is Zenkaku/Hankaku (no character) and International2/4/5 are IME keys, so
 // they are not in the table.
@@ -115,12 +183,14 @@ bool nameEquals(const char *a, const char *b)
 
 KeyboardLayout::KeyboardLayout()
     : entries_(kEnUsEntries), count_(sizeof(kEnUsEntries) / sizeof(kEnUsEntries[0])),
-      name_("en_us")
+      name_("en_us"), physicalShortcutPositions_(true)
 {
 }
 
-KeyboardLayout::KeyboardLayout(const KeyboardLayoutEntry *entries, size_t count, const char *layoutName)
-    : entries_(entries), count_(count), name_(layoutName)
+KeyboardLayout::KeyboardLayout(const KeyboardLayoutEntry *entries, size_t count,
+                               const char *layoutName, bool physicalShortcutPositions)
+    : entries_(entries), count_(count), name_(layoutName),
+      physicalShortcutPositions_(physicalShortcutPositions)
 {
 }
 
@@ -151,6 +221,33 @@ KeyboardLayout KeyboardLayout::byName(const char *name, bool *found)
     }
     return jaJp();
   }
+  const KeyboardLayoutEntry *dvorakEntries = nullptr;
+  const char *dvorakName = nullptr;
+  bool physicalShortcutPositions = false;
+  if (nameEquals(name, "dvorak") || nameEquals(name, "dvorak_qwmod"))
+  {
+    dvorakEntries = kDvorakEntries;
+    dvorakName = nameEquals(name, "dvorak_qwmod") ? "dvorak_qwmod" : "dvorak";
+    physicalShortcutPositions = nameEquals(name, "dvorak_qwmod");
+  }
+  else if (nameEquals(name, "dvorak_iu") || nameEquals(name, "dvorak_iu_qwmod"))
+  {
+    dvorakEntries = kDvorakIuEntries;
+    dvorakName = nameEquals(name, "dvorak_iu_qwmod") ? "dvorak_iu_qwmod" : "dvorak_iu";
+    physicalShortcutPositions = nameEquals(name, "dvorak_iu_qwmod");
+  }
+  if (dvorakEntries != nullptr)
+  {
+    if (found != nullptr)
+    {
+      *found = true;
+    }
+    const size_t count = dvorakEntries == kDvorakEntries
+                             ? sizeof(kDvorakEntries) / sizeof(kDvorakEntries[0])
+                             : sizeof(kDvorakIuEntries) / sizeof(kDvorakIuEntries[0]);
+    return KeyboardLayout(dvorakEntries, count, dvorakName,
+                          physicalShortcutPositions);
+  }
   for (size_t i = 0; i < sizeof(kGeneratedLayouts) / sizeof(kGeneratedLayouts[0]); ++i)
   {
     if (nameEquals(name, kGeneratedLayouts[i].name))
@@ -173,7 +270,7 @@ KeyboardLayout KeyboardLayout::byName(const char *name, bool *found)
 
 size_t KeyboardLayout::presetCount()
 {
-  return 2 + sizeof(kGeneratedLayouts) / sizeof(kGeneratedLayouts[0]);
+  return 6 + sizeof(kGeneratedLayouts) / sizeof(kGeneratedLayouts[0]);
 }
 
 const char *KeyboardLayout::presetName(size_t index)
@@ -186,7 +283,23 @@ const char *KeyboardLayout::presetName(size_t index)
   {
     return "ja_jp";
   }
-  index -= 2;
+  if (index == 2)
+  {
+    return "dvorak";
+  }
+  if (index == 3)
+  {
+    return "dvorak_qwmod";
+  }
+  if (index == 4)
+  {
+    return "dvorak_iu";
+  }
+  if (index == 5)
+  {
+    return "dvorak_iu_qwmod";
+  }
+  index -= 6;
   if (index >= sizeof(kGeneratedLayouts) / sizeof(kGeneratedLayouts[0]))
   {
     return nullptr;
@@ -278,6 +391,11 @@ bool KeyboardLayout::hasAltGr() const
     }
   }
   return false;
+}
+
+bool KeyboardLayout::usesPhysicalShortcutPositions() const
+{
+  return physicalShortcutPositions_;
 }
 
 bool KeyboardLayout::capsAffects(Key key) const
@@ -1308,12 +1426,13 @@ void ESP32KeyBridge::resolvePress(uint8_t inputIndex, Key source, bool triggersO
       // Shortcut rule: keys pressed while Ctrl/Alt/GUI is held on the same
       // input pass through unconverted (position semantics). Right Alt counts
       // as a shortcut modifier only when the engraving has no AltGr plane.
-      const bool shortcut = inputKeys.contains(keyboardKey(KeyboardUsage::LeftCtrl)) ||
-                            inputKeys.contains(keyboardKey(KeyboardUsage::RightCtrl)) ||
-                            inputKeys.contains(keyboardKey(KeyboardUsage::LeftAlt)) ||
-                            inputKeys.contains(keyboardKey(KeyboardUsage::LeftGui)) ||
-                            inputKeys.contains(keyboardKey(KeyboardUsage::RightGui)) ||
-                            (!engravingHasAltGr && inputKeys.contains(rightAlt));
+      const bool shortcut = perInput->engraving().usesPhysicalShortcutPositions() &&
+                            (inputKeys.contains(keyboardKey(KeyboardUsage::LeftCtrl)) ||
+                             inputKeys.contains(keyboardKey(KeyboardUsage::RightCtrl)) ||
+                             inputKeys.contains(keyboardKey(KeyboardUsage::LeftAlt)) ||
+                             inputKeys.contains(keyboardKey(KeyboardUsage::LeftGui)) ||
+                             inputKeys.contains(keyboardKey(KeyboardUsage::RightGui)) ||
+                             (!engravingHasAltGr && inputKeys.contains(rightAlt)));
       if (!shortcut)
       {
         const bool shifted = inputKeys.contains(leftShift) || inputKeys.contains(rightShift);

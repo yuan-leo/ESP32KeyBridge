@@ -101,9 +101,11 @@ Printable coverage per preset:
 |---|---|
 | `en_us` | ASCII printables (U+0020-U+007E) |
 | `ja_jp` | ASCII printables (U+0020-U+007E) plus `¥` (U+00A5) |
+| `dvorak` / `dvorak_qwmod` | ANSI US Dvorak ASCII printables |
+| `dvorak_iu` / `dvorak_iu_qwmod` | ANSI US Dvorak with only I and U exchanged |
 | Generated locales (below) | the printables of each layout's base / Shift / AltGr / AltGr+Shift planes (including locale-specific `ä ö ü ß € £ ñ ő`) |
 
-`en_us` and `ja_jp` are hand-written. The rest are generated from the shared 4-plane tables (`EspUsbHost/src/keymap/*.h`) into `KeyboardLayoutEntry[]` by `tools/gen_keymaps.py`, emitted to `src/ESP32KeyBridgeLayouts.inc`. The 14 generated locales are **`de_de` / `fr_fr` / `es_es` / `it_it` / `nl_nl` / `da_dk` / `nb_no` / `sv_se` / `fi_fi` / `en_gb` / `pt_pt` / `pt_br` / `fr_ch` / `hu_hu`**. Fetch them with `KeyboardLayout::byName("fr_fr")` and friends (`de_de` also has `deDe()`).
+`en_us`, `ja_jp`, and the four Dvorak variants are hand-written. The rest are generated from the shared 4-plane tables (`EspUsbHost/src/keymap/*.h`) into `KeyboardLayoutEntry[]` by `tools/gen_keymaps.py`, emitted to `src/ESP32KeyBridgeLayouts.inc`. The 14 generated locales are **`de_de` / `fr_fr` / `es_es` / `it_it` / `nl_nl` / `da_dk` / `nb_no` / `sv_se` / `fi_fi` / `en_gb` / `pt_pt` / `pt_br` / `fr_ch` / `hu_hu`**. Fetch them with `KeyboardLayout::byName("fr_fr")` and friends (`de_de` also has `deDe()`).
 
 Generation rules:
 
@@ -182,7 +184,7 @@ For setups where the keyboard's engraved layout differs from the host OS's layou
 ### Operational requirements and constraints
 
 - **A way to switch conversion on and off (a hotkey or external control) is a required feature.** Conversion produces output that assumes the host interprets it with a particular layout, so in BIOS / UEFI / recovery environments, which interpret differently, it garbles instead.
-- Keys pressed within a modifier combination (Ctrl / Alt / GUI held) are not converted by default and pass straight through (positional shortcuts take priority; a setting switches to converting). Letter shortcuts are identity mappings and unharmed either way.
+- Keys pressed within a modifier combination (Ctrl / Alt / GUI held) are not converted by default and pass straight through (positional shortcuts take priority). `dvorak` and `dvorak_iu` instead preserve Dvorak character meaning in shortcuts; `dvorak_qwmod` and `dvorak_iu_qwmod` use physical QWERTY positions whenever either left/right Ctrl, Alt, or GUI is held. Shift alone never selects that shortcut behavior.
 - Simultaneously holding keys with conflicting Shift requirements (`@` and `"` at once) cannot be represented and is documented as unsupported.
 - Mixed layouts across several keyboards work through per-input conversion (before merging) plus union merging. Plugging each keyboard into the PC individually cannot solve this in principle (the OS layout is single, and OS modifiers are global). The only remaining interference is the instant a converted key from one keyboard arrives while a modifier on another is held, mitigated by serialization and the deferral option.
 - Machine typists (HID barcode readers and the like) are covered by the same table and are the best case: shortcut and simultaneous-press constraints effectively never arise.

@@ -491,10 +491,14 @@ static void test_layout_settings_json_is_strict_and_atomic()
 
 static void test_keyboard_layout_presets_enumerate_lookup_names()
 {
-  assert(esp32keybridge::KeyboardLayout::presetCount() == 16);
+  assert(esp32keybridge::KeyboardLayout::presetCount() == 20);
   bool sawEnUs = false;
   bool sawJaJp = false;
   bool sawDeDe = false;
+  bool sawDvorak = false;
+  bool sawDvorakQwmod = false;
+  bool sawDvorakIu = false;
+  bool sawDvorakIuQwmod = false;
   for (size_t i = 0; i < esp32keybridge::KeyboardLayout::presetCount(); ++i)
   {
     const char *name = esp32keybridge::KeyboardLayout::presetName(i);
@@ -507,10 +511,173 @@ static void test_keyboard_layout_presets_enumerate_lookup_names()
     sawEnUs = sawEnUs || std::strcmp(name, "en_us") == 0;
     sawJaJp = sawJaJp || std::strcmp(name, "ja_jp") == 0;
     sawDeDe = sawDeDe || std::strcmp(name, "de_de") == 0;
+    sawDvorak = sawDvorak || std::strcmp(name, "dvorak") == 0;
+    sawDvorakQwmod = sawDvorakQwmod || std::strcmp(name, "dvorak_qwmod") == 0;
+    sawDvorakIu = sawDvorakIu || std::strcmp(name, "dvorak_iu") == 0;
+    sawDvorakIuQwmod =
+        sawDvorakIuQwmod || std::strcmp(name, "dvorak_iu_qwmod") == 0;
   }
-  assert(sawEnUs && sawJaJp && sawDeDe);
+  assert(sawEnUs && sawJaJp && sawDeDe && sawDvorak && sawDvorakQwmod &&
+         sawDvorakIu && sawDvorakIuQwmod);
   assert(esp32keybridge::KeyboardLayout::presetName(
              esp32keybridge::KeyboardLayout::presetCount()) == nullptr);
+}
+
+static void test_dvorak_layout_variants_map_letters_and_shortcuts()
+{
+  bool found = false;
+  const esp32keybridge::KeyboardLayout dvorak =
+      esp32keybridge::KeyboardLayout::byName("dvorak", &found);
+  assert(found);
+  assert(dvorak.decode(esp32keybridge::KeyboardUsage::Q, false) == U'\'');
+  assert(dvorak.decode(esp32keybridge::KeyboardUsage::F, false) == U'u');
+  assert(dvorak.decode(esp32keybridge::KeyboardUsage::G, false) == U'i');
+  assert(dvorak.decode(esp32keybridge::KeyboardUsage::Z, true) == U':');
+  assert(!dvorak.usesPhysicalShortcutPositions());
+  const esp32keybridge::KeyboardUsage dvorakUsages[] = {
+      esp32keybridge::KeyboardUsage::Q, esp32keybridge::KeyboardUsage::W,
+      esp32keybridge::KeyboardUsage::E, esp32keybridge::KeyboardUsage::R,
+      esp32keybridge::KeyboardUsage::T, esp32keybridge::KeyboardUsage::Y,
+      esp32keybridge::KeyboardUsage::U, esp32keybridge::KeyboardUsage::I,
+      esp32keybridge::KeyboardUsage::O, esp32keybridge::KeyboardUsage::P,
+      esp32keybridge::KeyboardUsage::LeftBracket,
+      esp32keybridge::KeyboardUsage::RightBracket,
+      esp32keybridge::KeyboardUsage::A, esp32keybridge::KeyboardUsage::S,
+      esp32keybridge::KeyboardUsage::D, esp32keybridge::KeyboardUsage::F,
+      esp32keybridge::KeyboardUsage::G, esp32keybridge::KeyboardUsage::H,
+      esp32keybridge::KeyboardUsage::J, esp32keybridge::KeyboardUsage::K,
+      esp32keybridge::KeyboardUsage::L, esp32keybridge::KeyboardUsage::Semicolon,
+      esp32keybridge::KeyboardUsage::Quote, esp32keybridge::KeyboardUsage::Z,
+      esp32keybridge::KeyboardUsage::X, esp32keybridge::KeyboardUsage::C,
+      esp32keybridge::KeyboardUsage::V, esp32keybridge::KeyboardUsage::B,
+      esp32keybridge::KeyboardUsage::N, esp32keybridge::KeyboardUsage::M,
+      esp32keybridge::KeyboardUsage::Comma, esp32keybridge::KeyboardUsage::Period,
+      esp32keybridge::KeyboardUsage::Slash,
+  };
+  const char expectedDvorak[] = "',.pyfgcrl/=aoeuidhtns-;qjkxbmwvz";
+  assert(sizeof(dvorakUsages) / sizeof(dvorakUsages[0]) ==
+         std::strlen(expectedDvorak));
+  for (size_t i = 0; i < std::strlen(expectedDvorak); ++i)
+  {
+    assert(dvorak.decode(dvorakUsages[i], false) ==
+           static_cast<char32_t>(expectedDvorak[i]));
+  }
+
+  const esp32keybridge::KeyboardLayout dvorakQwmod =
+      esp32keybridge::KeyboardLayout::byName("dvorak_qwmod", &found);
+  assert(found);
+  assert(dvorakQwmod.decode(esp32keybridge::KeyboardUsage::F, false) == U'u');
+  assert(dvorakQwmod.usesPhysicalShortcutPositions());
+
+  const esp32keybridge::KeyboardLayout dvorakIu =
+      esp32keybridge::KeyboardLayout::byName("dvorak_iu", &found);
+  assert(found);
+  assert(dvorakIu.decode(esp32keybridge::KeyboardUsage::F, false) == U'i');
+  assert(dvorakIu.decode(esp32keybridge::KeyboardUsage::G, false) == U'u');
+  assert(!dvorakIu.usesPhysicalShortcutPositions());
+
+  const esp32keybridge::KeyboardLayout dvorakIuQwmod =
+      esp32keybridge::KeyboardLayout::byName("dvorak_iu_qwmod", &found);
+  assert(found);
+  assert(dvorakIuQwmod.decode(esp32keybridge::KeyboardUsage::F, true) == U'I');
+  assert(dvorakIuQwmod.decode(esp32keybridge::KeyboardUsage::G, true) == U'U');
+  assert(dvorakIuQwmod.usesPhysicalShortcutPositions());
+}
+
+static void test_dvorak_modifier_policy_controls_conversion()
+{
+  const esp32keybridge::Key physicalC = esp32keybridge::KeyboardUsage::I;
+  const esp32keybridge::Key modifiers[] = {
+      esp32keybridge::KeyboardUsage::LeftCtrl,
+      esp32keybridge::KeyboardUsage::RightCtrl,
+      esp32keybridge::KeyboardUsage::LeftAlt,
+      esp32keybridge::KeyboardUsage::RightAlt,
+      esp32keybridge::KeyboardUsage::LeftGui,
+      esp32keybridge::KeyboardUsage::RightGui,
+  };
+
+  {
+    const esp32keybridge::Key leftCtrl = esp32keybridge::KeyboardUsage::LeftCtrl;
+    esp32keybridge::ESP32KeyBridge bridge;
+    esp32keybridge::ManualInputAdapter keyboard;
+    esp32keybridge::ESP32KeyBridgeConfig config;
+    esp32keybridge::InputConfig &inputConfig = config.addInputConfig();
+    inputConfig.convertLayout(esp32keybridge::KeyboardLayout::byName("dvorak"));
+    assert(bridge.addInput(keyboard, inputConfig));
+    bridge.applyConfig(config);
+    keyboard.press(leftCtrl);
+    keyboard.press(physicalC);
+    bridge.update();
+    assert(bridge.outputKeys().contains(leftCtrl));
+    assert(bridge.outputKeys().contains(
+        esp32keybridge::keyboardKey(esp32keybridge::KeyboardUsage::C)));
+  }
+
+  for (const esp32keybridge::Key modifier : modifiers)
+  {
+    esp32keybridge::ESP32KeyBridge bridge;
+    esp32keybridge::ManualInputAdapter keyboard;
+    esp32keybridge::ESP32KeyBridgeConfig config;
+    esp32keybridge::InputConfig &inputConfig = config.addInputConfig();
+    inputConfig.convertLayout(
+        esp32keybridge::KeyboardLayout::byName("dvorak_qwmod"));
+    assert(bridge.addInput(keyboard, inputConfig));
+    bridge.applyConfig(config);
+
+    keyboard.press(modifier);
+    keyboard.press(physicalC);
+    bridge.update();
+    assert(bridge.outputKeys().contains(modifier));
+    assert(bridge.outputKeys().contains(physicalC));
+  }
+
+  {
+    esp32keybridge::ESP32KeyBridge bridge;
+    esp32keybridge::ManualInputAdapter keyboard;
+    esp32keybridge::ESP32KeyBridgeConfig config;
+    esp32keybridge::InputConfig &inputConfig = config.addInputConfig();
+    inputConfig.convertLayout(
+        esp32keybridge::KeyboardLayout::byName("dvorak_qwmod"));
+    assert(bridge.addInput(keyboard, inputConfig));
+    bridge.applyConfig(config);
+    keyboard.press(esp32keybridge::KeyboardUsage::LeftShift);
+    keyboard.press(esp32keybridge::KeyboardUsage::F);
+    bridge.update();
+    assert(bridge.outputKeys().contains(esp32keybridge::KeyboardUsage::LeftShift));
+    assert(bridge.outputKeys().contains(esp32keybridge::KeyboardUsage::U));
+    assert(!bridge.outputKeys().contains(esp32keybridge::KeyboardUsage::F));
+  }
+
+  {
+    esp32keybridge::ESP32KeyBridge bridge;
+    esp32keybridge::ManualInputAdapter keyboard;
+    esp32keybridge::ESP32KeyBridgeConfig config;
+    esp32keybridge::InputConfig &inputConfig = config.addInputConfig();
+    inputConfig.convertLayout(
+        esp32keybridge::KeyboardLayout::byName("dvorak_iu"));
+    assert(bridge.addInput(keyboard, inputConfig));
+    bridge.applyConfig(config);
+    keyboard.press(esp32keybridge::KeyboardUsage::F);
+    bridge.update();
+    assert(bridge.outputKeys().contains(esp32keybridge::KeyboardUsage::I));
+    assert(!bridge.outputKeys().contains(esp32keybridge::KeyboardUsage::F));
+  }
+}
+
+static void test_bluetooth_slot_names_append_selected_slot()
+{
+  char name[32] = {};
+  assert(esp32keybridge::formatBluetoothSlotName(
+      "KeyBridge Keyboard", 1, name, sizeof(name)));
+  assert(std::strcmp(name, "KeyBridge Keyboard 1") == 0);
+  assert(esp32keybridge::formatBluetoothSlotName(
+      "KeyBridge Keyboard", 3, name, sizeof(name)));
+  assert(std::strcmp(name, "KeyBridge Keyboard 3") == 0);
+
+  char tooSmall[5] = {'x', 'x', 'x', 'x', '\0'};
+  assert(!esp32keybridge::formatBluetoothSlotName(
+      "KeyBridge Keyboard", 1, tooSmall, sizeof(tooSmall)));
+  assert(tooSmall[0] == '\0');
 }
 
 static void test_settings_navigation_captures_and_suppresses_until_release()
@@ -2663,6 +2830,9 @@ static void runAllTests()
   run("layout_settings_json_round_trip", test_layout_settings_json_round_trip);
   run("layout_settings_json_is_strict_and_atomic", test_layout_settings_json_is_strict_and_atomic);
   run("keyboard_layout_presets_enumerate_lookup_names", test_keyboard_layout_presets_enumerate_lookup_names);
+  run("dvorak_layout_variants_map_letters_and_shortcuts", test_dvorak_layout_variants_map_letters_and_shortcuts);
+  run("dvorak_modifier_policy_controls_conversion", test_dvorak_modifier_policy_controls_conversion);
+  run("bluetooth_slot_names_append_selected_slot", test_bluetooth_slot_names_append_selected_slot);
   run("settings_navigation_captures_and_suppresses_until_release", test_settings_navigation_captures_and_suppresses_until_release);
   run("settings_navigation_actions_and_bounded_queue", test_settings_navigation_actions_and_bounded_queue);
   run("key_identity_is_kind_plus_code", test_key_identity_is_kind_plus_code);

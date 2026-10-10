@@ -101,9 +101,11 @@
 |---|---|
 | `en_us` | ASCII 印字文字(U+0020〜U+007E) |
 | `ja_jp` | ASCII 印字文字(U+0020〜U+007E)+ `¥`(U+00A5) |
+| `dvorak` / `dvorak_qwmod` | ANSI US Dvorak の ASCII 印字文字 |
+| `dvorak_iu` / `dvorak_iu_qwmod` | I と U だけを入れ替えた ANSI US Dvorak |
 | 生成ロケール(下記) | 各 layout の base / Shift / AltGr / AltGr+Shift 各面の印字文字(ロケール固有の `ä ö ü ß € £ ñ ő` 等を含む) |
 
-`en_us` / `ja_jp` は手書き実装です。それ以外は共有 4-plane テーブル(`EspUsbHost/src/keymap/*.h`)から `tools/gen_keymaps.py` で `KeyboardLayoutEntry[]` を生成し、`src/ESP32KeyBridgeLayouts.inc` に出力します。生成対象は **`de_de` / `fr_fr` / `es_es` / `it_it` / `nl_nl` / `da_dk` / `nb_no` / `sv_se` / `fi_fi` / `en_gb` / `pt_pt` / `pt_br` / `fr_ch` / `hu_hu`** の 14 ロケールです。取得は `KeyboardLayout::byName("fr_fr")` 等(`de_de` は `deDe()` も可)。
+`en_us` / `ja_jp` と Dvorak 4 variant は手書き実装です。それ以外は共有 4-plane テーブル(`EspUsbHost/src/keymap/*.h`)から `tools/gen_keymaps.py` で `KeyboardLayoutEntry[]` を生成し、`src/ESP32KeyBridgeLayouts.inc` に出力します。生成対象は **`de_de` / `fr_fr` / `es_es` / `it_it` / `nl_nl` / `da_dk` / `nb_no` / `sv_se` / `fi_fi` / `en_gb` / `pt_pt` / `pt_br` / `fr_ch` / `hu_hu`** の 14 ロケールです。取得は `KeyboardLayout::byName("fr_fr")` 等(`de_de` は `deDe()` も可)。
 
 生成規則:
 - 列 = base / Shift / AltGr / AltGr+Shift の Unicode コードポイント(0 は当該面に文字なし)。
@@ -181,7 +183,7 @@
 ### 運用要件と制約
 
 - **変換の on/off 切替(ホットキーまたは外部制御)を必須機能とします。** 変換は「ホストが特定 layout で解釈する」前提の出力を作るため、BIOS / UEFI / リカバリ環境など別解釈の場面では逆に化けます。
-- 修飾コンボ(Ctrl / Alt / GUI 押下中)のキーは既定で変換せず素通しします(位置ベースのショートカット優先。設定で変換に切替可)。英字ショートカットは恒等なのでどちらでも無傷です。
+- 修飾コンボ(Ctrl / Alt / GUI 押下中)のキーは既定で変換せず素通しします(位置ベースのショートカット優先)。`dvorak` / `dvorak_iu` は Dvorak の文字どおりに変換し、`dvorak_qwmod` / `dvorak_iu_qwmod` は左右いずれかの Ctrl / Alt / GUI 押下中だけ物理 QWERTY 位置を使います。Shift だけではこの動作へ切り替わりません。
 - Shift 要求が矛盾するキーの同時押し(`@` と `"` を同時に保持等)は表現不能で、非対応と明記します。
 - 複数キーボードのレイアウト混在は「入力ごとの変換(統合前)+ 和集合統合」で成立します。個別に PC へ挿す方式では原理的に解決できません(OS layout は単一、OS の修飾はグローバル)。制約は「一方の修飾押下中に他方の変換キーが同時到来した瞬間」の干渉のみで、直列化と遅延オプションで緩和します。
 - 機械タイピスト(HID 型バーコードリーダー等)は同じ変換表で被覆でき、ショートカット・同時押しの制約が実質発生しない最良条件です。

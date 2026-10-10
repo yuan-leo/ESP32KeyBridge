@@ -560,17 +560,24 @@ public:
   // True when any key in this layout carries an AltGr (Right Alt) plane.
   bool hasAltGr() const;
 
+  // When true, Ctrl/Alt/GUI shortcuts retain the input key's physical HID
+  // position instead of converting its printable character. This keeps
+  // shortcuts in their familiar QWERTY positions.
+  bool usesPhysicalShortcutPositions() const;
+
   // True when Caps Lock inverts the shift requirement of this stroke's key.
   bool capsAffects(Key key) const;
 
   const char *name() const;
 
 private:
-  KeyboardLayout(const KeyboardLayoutEntry *entries, size_t count, const char *layoutName);
+  KeyboardLayout(const KeyboardLayoutEntry *entries, size_t count, const char *layoutName,
+                 bool physicalShortcutPositions = true);
 
   const KeyboardLayoutEntry *entries_;
   size_t count_;
   const char *name_;
+  bool physicalShortcutPositions_;
 };
 
 // ---------------------------------------------------------------------------

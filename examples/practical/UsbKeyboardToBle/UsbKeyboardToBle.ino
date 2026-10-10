@@ -34,10 +34,11 @@
 
 EspUsbHost usbHost; // keyboard side
 EspBle ble;         // PC / phone side
+constexpr char kBluetoothDeviceName[] = "KeyBridge Keyboard";
 
 esp32keybridge::ESP32KeyBridge bridge;
 esp32keybridge::EspUsbHostKeyboardInputAdapter rawKeyboard(usbHost);
-esp32keybridge::EspBleHidTargetController bluetoothTargets(ble);
+esp32keybridge::EspBleHidTargetController bluetoothTargets(ble, kBluetoothDeviceName);
 esp32keybridge::SettingsNavigationInputAdapter settingsKeyboard(rawKeyboard);
 esp32keybridge::BluetoothHotkeyInputAdapter keyboard(settingsKeyboard, bluetoothTargets);
 esp32keybridge::EspBleHidOutputAdapter host(ble);
@@ -54,13 +55,36 @@ void setup()
 {
   Serial.begin(115200);
 
+  // Keep these diagnostics in the reference sketch: USB host failures are
+  // otherwise indistinguishable from BLE pairing failures at bring-up time.
+  usbHost.addDeviceConnectedListener(
+      [](const EspUsbHostDeviceInfo &info)
+      {
+        Serial.printf("USB connected: addr=%u vid=%04X pid=%04X supported=%s product=%s\n",
+                      info.address, info.vid, info.pid,
+                      info.supported ? "yes" : "no", info.product);
+      });
+  usbHost.addDeviceDisconnectedListener(
+      [](const EspUsbHostDeviceInfo &info)
+      {
+        Serial.printf("USB disconnected: addr=%u vid=%04X pid=%04X\n",
+                      info.address, info.vid, info.pid);
+      });
+  usbHost.addKeyboardStateListener(
+      [](const EspUsbHostKeyboardState &state)
+      {
+        Serial.printf("USB keyboard report: addr=%u modifiers=%02X\n",
+                      state.address, state.modifiers);
+      });
+
   // 1) Start the hardware. The output adapter declared its HID profiles when
   //    it was constructed, so ble.begin() below publishes a keyboard +
   //    consumer + mouse HID service.
-  usbHost.begin();
+  const bool usbHostStarted = usbHost.begin();
+  Serial.printf("USB host start: %s\n", usbHostStarted ? "ok" : "failed");
 
   EspBleConfig bleConfig;
-  bleConfig.deviceName = "KeyBridge Keyboard";
+  bleConfig.deviceName = kBluetoothDeviceName;
   // HID hosts expect an encrypted, bonded link.
   bleConfig.security.enabled = true;
   bleConfig.security.bonding = true;
@@ -69,7 +93,11 @@ void setup()
     Serial.printf("BLE start failed: %s\n", ble.lastErrorDetail().c_str());
     return;
   }
-  ble.advertising().setName(bleConfig.deviceName);
+  if (!bluetoothTargets.applySelectedSlotName())
+  {
+    Serial.println("BLE slot name is too long");
+    return;
+  }
   ble.advertising().start();
 
   // 2) Load the persisted layout settings, then wire the bridge: USB keyboard

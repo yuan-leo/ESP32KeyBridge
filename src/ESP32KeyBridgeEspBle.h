@@ -204,7 +204,8 @@ class EspBleHidTargetController : public BluetoothTargetController
 public:
   static constexpr size_t MaxSlots = 3;
 
-  explicit EspBleHidTargetController(EspBle &ble) : ble_(ble)
+  explicit EspBleHidTargetController(EspBle &ble, const char *baseDeviceName = nullptr)
+      : ble_(ble), baseDeviceName_(baseDeviceName == nullptr ? "" : baseDeviceName)
   {
     connectedListener_ = ble_.addConnectedListener(
         [this](const EspBleConnection &connection) { handleConnected(connection); });
@@ -225,6 +226,25 @@ public:
   size_t selectedSlot() const override { return selectedSlot_; }
   BluetoothTargetStatus status() const override { return status_; }
   uint32_t nowMilliseconds() const override { return millis(); }
+
+  // Applies the selected slot suffix to EspBle's advertising name. Call once
+  // after ble.begin() and before the sketch's initial advertising start;
+  // reconnect and pairing paths call it automatically afterwards.
+  bool applySelectedSlotName()
+  {
+    if (baseDeviceName_.isEmpty())
+    {
+      return true;
+    }
+    char name[32] = {};
+    if (!formatBluetoothSlotName(baseDeviceName_.c_str(), selectedSlot_, name,
+                                 sizeof(name)))
+    {
+      return false;
+    }
+    ble_.advertising().setName(name);
+    return true;
+  }
 
   bool selectSlot(size_t slot) override
   {
@@ -307,7 +327,8 @@ private:
     pending_ = Pending::None;
     if (operation == Pending::DirectedAdvertising)
     {
-      if (!ble_.advertising().setDirectedTarget(
+      if (!applySelectedSlotName() ||
+          !ble_.advertising().setDirectedTarget(
               targetBond_.peerAddress.c_str(), targetBond_.peerAddressType) ||
           !ble_.advertising().start())
       {
@@ -327,7 +348,7 @@ private:
       }
       slotUsed_[index] = false;
       ble_.advertising().clearDirectedTarget();
-      if (!ble_.advertising().start())
+      if (!applySelectedSlotName() || !ble_.advertising().start())
       {
         status_ = BluetoothTargetStatus::Failed;
         return false;
@@ -414,7 +435,10 @@ private:
     else
     {
       ble_.advertising().clearDirectedTarget();
-      ble_.advertising().start();
+      if (!applySelectedSlotName() || !ble_.advertising().start())
+      {
+        status_ = BluetoothTargetStatus::Failed;
+      }
     }
   }
 
@@ -480,6 +504,7 @@ private:
   }
 
   EspBle &ble_;
+  String baseDeviceName_;
   size_t selectedSlot_ = 1;
   BluetoothTargetStatus status_ = BluetoothTargetStatus::Idle;
   Pending pending_ = Pending::None;

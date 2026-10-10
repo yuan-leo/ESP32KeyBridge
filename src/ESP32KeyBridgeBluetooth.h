@@ -8,6 +8,50 @@
 namespace esp32keybridge
 {
 
+// Builds the advertised name for a one-based target slot (for example,
+// "KeyBridge Keyboard 2"). The destination is cleared on invalid input or
+// insufficient capacity.
+inline bool formatBluetoothSlotName(const char *baseName, size_t slot,
+                                    char *destination, size_t capacity)
+{
+  if (destination == nullptr || capacity == 0)
+  {
+    return false;
+  }
+  destination[0] = '\0';
+  if (baseName == nullptr || slot == 0)
+  {
+    return false;
+  }
+
+  size_t baseLength = 0;
+  while (baseName[baseLength] != '\0')
+  {
+    ++baseLength;
+  }
+  char digits[3 * sizeof(size_t)] = {};
+  size_t digitCount = 0;
+  for (size_t value = slot; value != 0; value /= 10)
+  {
+    digits[digitCount++] = static_cast<char>('0' + value % 10);
+  }
+  if (baseLength + 1 + digitCount + 1 > capacity)
+  {
+    return false;
+  }
+  for (size_t i = 0; i < baseLength; ++i)
+  {
+    destination[i] = baseName[i];
+  }
+  destination[baseLength] = ' ';
+  for (size_t i = 0; i < digitCount; ++i)
+  {
+    destination[baseLength + 1 + i] = digits[digitCount - 1 - i];
+  }
+  destination[baseLength + 1 + digitCount] = '\0';
+  return true;
+}
+
 // State exposed by a Bluetooth output target while a hotkey request is in
 // progress.  Transport implementations update this asynchronously from their
 // normal update/event path; the hotkey adapter uses it only for LED feedback.

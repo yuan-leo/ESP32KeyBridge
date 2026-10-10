@@ -344,9 +344,9 @@ What to know:
 
 - **Identity keys pass straight through** — letters, digits, navigation, modifiers. Only symbols convert (about 15 keys between US and JA)
 - **Shift is both suppressed and synthesized.** Held physical Shift may be dropped on the way out; absent Shift may be added. It is maintained while held, so long-press and auto-repeat survive
-- **Modifier combinations (Ctrl / Alt / GUI held) are not converted by default**, because shortcuts are usually bound positionally
+- **Modifier combinations (Ctrl / Alt / GUI held) are not converted by default**, because shortcuts are usually bound positionally. Plain Dvorak presets preserve Dvorak character meaning; their `_qwmod` variants restore physical QWERTY shortcut positions
 - **A way to turn it off is required in practice.** BIOS, UEFI, and recovery environments interpret keys differently, so leaving conversion on garbles them instead. Assign a key to `layoutConversionToggle`
-- 16 locales (`en_us` / `ja_jp` plus 14 generated) x 4 planes (base / Shift / AltGr / AltGr+Shift). Fetch with `KeyboardLayout::byName("fr_fr")`
+- 20 presets: `en_us`, `ja_jp`, 14 generated locales, and four Dvorak variants (`dvorak`, `dvorak_qwmod`, `dvorak_iu`, `dvorak_iu_qwmod`). Fetch with `KeyboardLayout::byName("dvorak_iu")`
 
 The two directions are not equally useful. **US engraving to a ja_jp host covers ASCII 100%**, while **ja_jp engraving to an en_us host cannot type `¥`** and leaves gaps.
 
@@ -708,13 +708,18 @@ Wrap the physical keyboard input with `BluetoothHotkeyInputAdapter` and place an
 `EspBleHidTargetController` next to the BLE output:
 
 ```cpp
+constexpr char bluetoothName[] = "KeyBridge Keyboard";
 EspUsbHostKeyboardInputAdapter rawKeyboard(usbHost);
-EspBleHidTargetController targets(ble);
+EspBleHidTargetController targets(ble, bluetoothName);
 BluetoothHotkeyInputAdapter keyboard(rawKeyboard, targets);
 EspBleHidOutputAdapter output(ble);
 
 bridge.addInput(keyboard);
 bridge.addOutput(output);
+
+// After ble.begin(): advertise the initially selected slot (slot 1).
+targets.applySelectedSlotName();
+ble.advertising().start();
 ```
 
 Hold Scroll Lock and press top-row `1`, `2`, or `3` to reconnect to that bond
@@ -725,6 +730,8 @@ the Scroll Lock LED for status; it preserves Caps/Num/Kana and restores the
 effective Scroll Lock value afterwards. `EspBleHidTargetController` owns
 disconnect/reconnect advertising, so do not also install an unconditional
 `onDisconnected(... advertising().start())` callback.
+The selected slot is advertised as `KeyBridge Keyboard 1`, `2`, or `3`.
+Some hosts cache an earlier name until the device is removed and paired again.
 
 #### 6.2.2 Bluetooth Classic HID output
 

@@ -8,6 +8,7 @@
 - 途中でできる変換はすべてそのまま使えます(リマップ、無効化、モーメンタリレイヤー、テキストマクロ、レイアウト変換)。このスケッチでは CapsLock 長押しのナビゲーションレイヤーを足しています。無線キーボードはマウスのない場所で使うことが多いためです。
 - lock 状態は Bluetooth ホストが正本です。ホストの LED output report を受け取り、bridge が USB キーボードの LED へ転送します。キーボードで Caps Lock を押したときの LED は推測ではなくホストに追従します。
 - **Scroll Lock** を押しながら上段の **1**、**2**、**3** を押すと、その slot に bond 済みの host へ切り替えます。**Scroll Lock + 0** で選択中 slot を入れ替える pairing mode に入ります。切替 / pairing 中は Scroll Lock LED が点滅し、終了後は host の本来の Scroll Lock 状態へ戻ります。
+- slot ごとに `KeyBridge Keyboard 1`、`KeyBridge Keyboard 2`、`KeyBridge Keyboard 3` の名前で advertise します。host 側に古い名前が cache されている場合は、device を削除して再 pairing するまで表示が更新されないことがあります。
 
 ## local layout 設定
 
@@ -43,7 +44,7 @@ PC 側が USB ではなく Bluetooth なので、USB を使うのはキーボー
 
 ## ペアリング
 
-`KeyBridge Keyboard` という名前でアドバタイズします。**Scroll Lock + 0** を押してから host の Bluetooth 設定で pair してください。bond は選択中 slot に保持されます。EspBle 同梱 NimBLE の bond 上限に合わせて 3 slot が使え、通常の切断後は directed advertising で選択中 slot だけへ再接続します。
+最初に選択されている slot は `KeyBridge Keyboard 1` という名前でアドバタイズします。**Scroll Lock + 0** を押してから host の Bluetooth 設定で pair してください。slot 2 / 3 を選ぶと対応する suffix を使います。bond は選択中 slot に保持されます。EspBle 同梱 NimBLE の bond 上限に合わせて 3 slot が使え、通常の切断後は directed advertising で選択中 slot だけへ再接続します。
 
 ## ble.update() と bridge.update()
 

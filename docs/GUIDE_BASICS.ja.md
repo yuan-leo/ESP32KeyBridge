@@ -344,9 +344,9 @@ bridge.addInput(keyboard, kb);
 
 - **英字・数字・矢印・修飾キーなどの恒等キーは素通し**します。変換対象は記号系だけ(US⇄JA で約 15 キー)
 - **Shift は抑制も合成もされます。** 物理 Shift を押していても出力で外す、押していなくても出力で押す。押している間は維持されるので、長押しやリピートは保たれます
-- **修飾コンボ(Ctrl / Alt / GUI 押下中)は既定で変換しません。** ショートカットは位置ベースで解釈されることが多いためです
+- **修飾コンボ(Ctrl / Alt / GUI 押下中)は既定で変換しません。** ショートカットは位置ベースで解釈されることが多いためです。通常の Dvorak preset は Dvorak の文字どおりに変換し、`_qwmod` variant は物理 QWERTY 位置へ戻します
 - **on/off の切替手段は事実上必須です。** BIOS / UEFI / リカバリ環境は別の解釈をするので、変換したままだと逆に化けます。`layoutConversionToggle` にキーを割り当ててください
-- レイアウトは 16 ロケール(`en_us` / `ja_jp` + 生成 14 種)× 4 プレーン(base / Shift / AltGr / AltGr+Shift)。取得は `KeyboardLayout::byName("fr_fr")`
+- preset は 20 種です。`en_us`、`ja_jp`、生成 14 locale と、Dvorak 4 variant (`dvorak` / `dvorak_qwmod` / `dvorak_iu` / `dvorak_iu_qwmod`)。取得は `KeyboardLayout::byName("dvorak_iu")`
 
 方向によって実用度が違います。**US 刻印 → ja_jp ホストは ASCII を 100% 被覆**しますが、**ja_jp 刻印 → en_us ホストは `¥` などが打てず欠けが出ます**。
 
@@ -710,13 +710,18 @@ physical keyboard 入力を `BluetoothHotkeyInputAdapter` で包み、BLE 出力
 `EspBleHidTargetController` を置きます。
 
 ```cpp
+constexpr char bluetoothName[] = "KeyBridge Keyboard";
 EspUsbHostKeyboardInputAdapter rawKeyboard(usbHost);
-EspBleHidTargetController targets(ble);
+EspBleHidTargetController targets(ble, bluetoothName);
 BluetoothHotkeyInputAdapter keyboard(rawKeyboard, targets);
 EspBleHidOutputAdapter output(ble);
 
 bridge.addInput(keyboard);
 bridge.addOutput(output);
+
+// ble.begin() 後、最初に選択されている slot 1 を advertise する。
+targets.applySelectedSlotName();
+ble.advertising().start();
 ```
 
 Scroll Lock を押しながら上段 `1`、`2`、`3` を押すと、その bond slot へ再接続します。
@@ -726,6 +731,8 @@ Scroll Lock + `0` は選択中 slot の bond を削除・入れ替えて通常�
 状態を保存して終了後に復元します。切断・再接続時の advertising は
 `EspBleHidTargetController` が所有するため、無条件に advertising を始める
 `onDisconnected(... advertising().start())` callback は併用しません。
+選択 slot は `KeyBridge Keyboard 1`、`2`、`3` として advertise されます。
+host が古い名前を cache している場合は、device の削除と再 pairing まで更新されないことがあります。
 
 #### 6.2.2 Bluetooth Classic HID 出力
 

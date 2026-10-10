@@ -1,6 +1,8 @@
 # Changelog / 変更履歴
 
 ## Unreleased
+- (EN) Add four built-in Dvorak layouts (standard, I/U-swapped, and QWERTY-position shortcut variants) and advertise BLE target slots with `1`-`3` appended to the device name.
+- (JA) Dvorak 4 variant（標準、I/U 入替、QWERTY 位置 shortcut 版）を内蔵し、BLE 接続先 slot ごとの device name に `1`〜`3` を付加。
 - (EN) Add Phase 7 opt-in HTTP Digest authentication for the ESP32-S3 settings page, health check, and all registered API routes, with strict paired credential validation and development login examples.
 - (JA) Phase 7 の opt-in HTTP Digest authentication を追加。ESP32-S3 設定 page、health check、全登録 API route を保護し、credential pair の厳密な検証と開発用 login example を実装。
 - (EN) Add Phase 6 opt-in captive-portal discovery: wildcard local DNS, fixed-AP-address redirects for unknown non-API GET probes, API-safe 404 behavior, and automatic discovery enabled in both ESP32-S3 settings examples.
