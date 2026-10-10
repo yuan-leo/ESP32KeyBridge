@@ -1,6 +1,8 @@
 # Changelog / 変更履歴
 
 ## Unreleased
+- (EN) Add authenticated local-web monitoring and control for all three remembered BLE HID host profiles, including persistent labels, full addresses, directed reconnect, pair/replace with a two-minute timeout, cancel, and delete. Fix `Scroll Lock+1/2/3` so empty slots remain distinctly selected without implicitly pairing.
+- (JA) 記憶済み BLE HID host 3プロファイルの認証付きWeb監視・操作を追加。永続ラベル、完全なaddress、指定再接続、2分timeout付きpair/replace、cancel、deleteに対応。`Scroll Lock+1/2/3` は空slotも自動pairせず個別に選択するよう修正。
 - (EN) Add four built-in Dvorak layouts (standard, I/U-swapped, and QWERTY-position shortcut variants) and advertise BLE target slots with `1`-`3` appended to the device name.
 - (JA) Dvorak 4 variant（標準、I/U 入替、QWERTY 位置 shortcut 版）を内蔵し、BLE 接続先 slot ごとの device name に `1`〜`3` を付加。
 - (EN) Add Phase 7 opt-in HTTP Digest authentication for the ESP32-S3 settings page, health check, and all registered API routes, with strict paired credential validation and development login examples.

@@ -25,3 +25,13 @@ Examples:
 - In a private/incognito browser session, request `/api/v1/status` directly and
   verify it returns 401 until valid portal credentials are entered.
 
+# Bluetooth profile acceptance
+
+With `UsbKeyboardToBle` flashed, verify the website and keyboard agree for
+Profiles 1, 2, and 3. For each empty slot, `Scroll Lock+N` must select it without
+pairing and the page must show it selected. For each occupied slot it must start
+a directed reconnect. Verify Pair/Replace, Cancel Pairing, the 120-second
+timeout, label persistence after reboot, deleting active and inactive slots,
+and that full addresses and Selected/Connected states remain attached to the
+same profile after reboot.
+

@@ -10,6 +10,13 @@ ESP32KeyBridge is an Arduino library that puts an ESP32 **between a keyboard and
 
 The result is a device the PC cannot tell apart from an ordinary keyboard — no drivers, no software on the host, and nothing to configure on the keyboard either.
 
+The `UsbKeyboardToBle` example remembers and manages three Bluetooth host
+profiles from its local settings website. It shows the connected count,
+selected slot, full address, and a persistent label, and provides Connect,
+Pair/Replace, Cancel Pairing, Rename, and Delete controls. The same slots are
+controlled from the keyboard with `Scroll Lock+1/2/3`; `Scroll Lock+0` pairs
+the selected slot. Selecting an empty slot does not start pairing.
+
 The bridge core is portable C++ with **no dependency on Arduino, ESP-IDF, or any hardware**: it never reads a clock, never allocates, and runs from a single `update()` call. Everything platform-specific lives in adapters, so the whole transformation layer is unit-tested on the host machine.
 
 ## Why use ESP32KeyBridge?

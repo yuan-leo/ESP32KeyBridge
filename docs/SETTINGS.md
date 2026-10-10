@@ -205,3 +205,29 @@ request, but it is not TLS and does not encrypt response content. Keep the
 WPA2 passphrase enabled, use separate strong Wi-Fi and portal passwords, and
 replace the development credentials in the examples. Credential persistence
 or first-boot production provisioning is not part of Phase 7.
+# Bluetooth profiles
+
+`UsbKeyboardToBle` can optionally bind its shared Bluetooth controller to the
+settings server. The page then shows all three remembered host slots, the
+selected and connected slot, full bonded address, persistent local label, and
+any connect/pair/delete operation. Only one BLE HID host is connected at a
+time. The three-slot limit comes from EspBle's bundled NimBLE bond store.
+
+`Scroll Lock+1`, `+2`, or `+3` selects that exact slot. An occupied slot starts
+a directed reconnect; an empty slot is selected without starting pairing.
+`Scroll Lock+0` pairs the selected slot. Pairing can be cancelled and expires
+after 120 seconds. Replacing a slot removes its old bond before advertising,
+so cancel or timeout can leave it empty. Delete retains the label, never starts
+pairing, and can briefly disconnect the active host because EspBle cannot
+delete any bond while a BLE connection is open.
+
+Authenticated endpoints are:
+
+- `GET /api/v1/bluetooth` — current overall and three-slot snapshot.
+- `PUT /api/v1/bluetooth/label` — `{"slot":1,"label":"Laptop"}`.
+- `POST /api/v1/bluetooth/action` —
+  `{"slot":1,"action":"connect","confirm":false}`. Actions are `connect`,
+  `pair`, `cancel`, and `delete`; pair/delete require `confirm:true`.
+
+Labels are UTF-8 and at most 24 bytes. They are local metadata because EspBle
+does not expose a bonded host's friendly name.
