@@ -145,3 +145,21 @@ def test_usb_keyboard_to_ble_wires_persistent_profile_management():
     assert "BluetoothProfileSettingsStore *profileStore_" in controller
     assert "bool cancelPairing() override" in controller
     assert "bool deleteSlot(size_t slot) override" in controller
+
+
+def test_ble_profile_recovery_has_deadlines_reset_and_remote_name_discovery():
+    controller = (ROOT / "src/ESP32KeyBridgeEspBle.h").read_text(encoding="utf-8")
+    interface = (ROOT / "src/ESP32KeyBridgeBluetooth.h").read_text(encoding="utf-8")
+
+    assert "ReconnectTimeoutMs = 30000" in controller
+    assert "PairingTimeoutMs = 120000" in controller
+    assert "bool forceDisconnect() override" in controller
+    assert "bool resetBluetooth() override" in controller
+    assert "deleteAllBonds()" in controller
+    assert "addCharacteristicDiscoveredListener" in controller
+    assert "addCharacteristicReadListener" in controller
+    assert "removeGattListener" in controller
+    assert 'discoverCharacteristic(peripheralConnectionId_, "1800", "2a00"' in controller
+    assert "result.connectionId != peripheralConnectionId_" in controller
+    assert "equalsIgnoreCase(registry_.profile(selectedSlot_).address)" in controller
+    assert "class BluetoothOperationDeadline" in interface

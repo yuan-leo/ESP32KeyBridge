@@ -951,6 +951,8 @@ public:
   bool cancelPairing() override { return true; }
   bool deleteSlot(size_t) override { return true; }
   bool setSlotLabel(size_t, const char *) override { return true; }
+  bool forceDisconnect() override { ++forceDisconnectCalls; return true; }
+  bool resetBluetooth() override { ++resetBluetoothCalls; return true; }
   bool busy() const override { return false; }
 
   size_t slots = 3;
@@ -958,12 +960,37 @@ public:
   size_t lastSlot = 0;
   size_t selectCalls = 0;
   size_t pairCalls = 0;
+  size_t forceDisconnectCalls = 0;
+  size_t resetBluetoothCalls = 0;
   uint32_t now = 0;
   bool accept = true;
   esp32keybridge::BluetoothTargetSnapshot snapshotValue;
   esp32keybridge::BluetoothTargetStatus state =
       esp32keybridge::BluetoothTargetStatus::Idle;
 };
+
+static void test_bluetooth_operation_deadline_handles_wraparound()
+{
+  esp32keybridge::BluetoothOperationDeadline deadline;
+  assert(!deadline.active());
+  assert(!deadline.expired(100));
+  deadline.start(100, 30);
+  assert(deadline.active());
+  assert(!deadline.expired(129));
+  assert(deadline.expired(130));
+  deadline.cancel();
+  assert(!deadline.active());
+
+  deadline.start(0xfffffff0u, 32);
+  assert(!deadline.expired(0x0000000fu));
+  assert(deadline.expired(0x00000010u));
+
+  FakeBluetoothTarget target;
+  assert(target.forceDisconnect());
+  assert(target.resetBluetooth());
+  assert(target.forceDisconnectCalls == 1);
+  assert(target.resetBluetoothCalls == 1);
+}
 
 static void test_bluetooth_target_hotkeys_are_consumed()
 {
@@ -2976,6 +3003,7 @@ static void runAllTests()
   run("bluetooth_slot_names_append_selected_slot", test_bluetooth_slot_names_append_selected_slot);
   run("bluetooth_profile_settings_persist_labels_and_addresses", test_bluetooth_profile_settings_persist_labels_and_addresses);
   run("bluetooth_profile_settings_migrate_version_1", test_bluetooth_profile_settings_migrate_version_1);
+  run("bluetooth_operation_deadline_handles_wraparound", test_bluetooth_operation_deadline_handles_wraparound);
   run("settings_navigation_captures_and_suppresses_until_release", test_settings_navigation_captures_and_suppresses_until_release);
   run("settings_navigation_actions_and_bounded_queue", test_settings_navigation_actions_and_bounded_queue);
   run("key_identity_is_kind_plus_code", test_key_identity_is_kind_plus_code);

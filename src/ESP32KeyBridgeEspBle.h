@@ -214,6 +214,10 @@ public:
         [this](const EspBleConnection &connection) { handleDisconnected(connection); });
     securityListener_ = ble_.addSecurityChangedListener(
         [this](const EspBleSecurityChanged &event) { handleSecurity(event); });
+    characteristicDiscoveredListener_ = ble_.addCharacteristicDiscoveredListener(
+        [this](const EspBleGattResult &result) { handleNameDiscovered(result); });
+    characteristicReadListener_ = ble_.addCharacteristicReadListener(
+        [this](const EspBleGattResult &result) { handleNameRead(result); });
   }
 
   EspBleHidTargetController(EspBle &ble, BluetoothProfileSettingsStore &store,
@@ -228,6 +232,8 @@ public:
     ble_.removeConnectionListener(connectedListener_);
     ble_.removeConnectionListener(disconnectedListener_);
     ble_.removeConnectionListener(securityListener_);
+    ble_.removeGattListener(characteristicDiscoveredListener_);
+    ble_.removeGattListener(characteristicReadListener_);
   }
 
   size_t slotCount() const override { return MaxSlots; }
@@ -258,6 +264,15 @@ public:
   void update() override
   {
     loadProfileSettings();
+    if (reconnectDeadline_.expired(millis()))
+    {
+      reconnectDeadline_.cancel();
+      ble_.advertising().stop();
+      pending_ = Pending::None;
+      operation_ = BluetoothProfileOperation::None;
+      status_ = BluetoothTargetStatus::Idle;
+      clearError();
+    }
     if (status_ == BluetoothTargetStatus::Pairing &&
         static_cast<uint32_t>(millis() - pairingStartedMs_) >= PairingTimeoutMs)
     {
@@ -299,6 +314,7 @@ public:
   bool selectSlot(size_t slot) override
   {
     if (busy()) return reject("bluetooth_busy");
+    suppressReconnect_ = false;
     if (slot == 0 || slot > MaxSlots)
     {
       status_ = BluetoothTargetStatus::Failed;
@@ -353,6 +369,7 @@ public:
   bool pairSlot(size_t slot) override
   {
     if (busy()) return reject("bluetooth_busy");
+    suppressReconnect_ = false;
     if (slot == 0 || slot > MaxSlots)
     {
       status_ = BluetoothTargetStatus::Failed;
@@ -444,7 +461,6 @@ public:
 
   bool setSlotLabel(size_t slot, const char *label) override
   {
-    if (busy()) return reject("bluetooth_busy");
     loadProfileSettings();
     BluetoothProfileRegistry before = registry_;
     if (!registry_.setLabel(slot, label)) return fail("invalid_label");
@@ -454,6 +470,54 @@ public:
       return fail("profile_storage_write_failed");
     }
     clearError();
+    return true;
+  }
+
+  bool forceDisconnect() override
+  {
+    ble_.advertising().stop();
+    reconnectDeadline_.cancel();
+    pending_ = Pending::None;
+    deleteSlot_ = 0;
+    reconnectSlot_ = 0;
+    pairingConnectionId_ = 0;
+    suppressReconnect_ = true;
+    clearError();
+    if (forceStopDisconnect_) return true;
+    if (peripheralConnectionId_ != 0)
+    {
+      forceStopDisconnect_ = true;
+      operation_ = BluetoothProfileOperation::Cancelling;
+      status_ = BluetoothTargetStatus::Switching;
+      if (!ble_.disconnect(peripheralConnectionId_))
+      {
+        forceStopDisconnect_ = false;
+        return fail("disconnect_failed");
+      }
+      return true;
+    }
+    forceStopDisconnect_ = false;
+    operation_ = BluetoothProfileOperation::None;
+    status_ = BluetoothTargetStatus::Idle;
+    return true;
+  }
+
+  bool resetBluetooth() override
+  {
+    const bool stopped = forceDisconnect();
+    const bool bondsCleared = ble_.deleteAllBonds();
+    const bool profilesCleared = profileStore_ == nullptr || profileStore_->clear();
+    registry_.reset();
+    selectedSlot_ = 1;
+    slotsLoaded_ = true;
+    for (size_t i = 0; i < MaxSlots; ++i)
+    {
+      slotUsed_[i] = false;
+      slots_[i] = EspBleBond();
+    }
+    if (!stopped) return false;
+    if (!bondsCleared) return fail("bond_delete_failed");
+    if (!profilesCleared) return fail("profile_storage_write_failed");
     return true;
   }
 
@@ -528,6 +592,7 @@ private:
       {
         return fail("directed_advertising_failed");
       }
+      reconnectDeadline_.start(millis(), ReconnectTimeoutMs);
       return true;
     }
 
@@ -581,6 +646,8 @@ private:
     }
     peripheralConnectionId_ = connection.id;
     peripheralAddress_ = connection.peerAddress;
+    reconnectDeadline_.cancel();
+    suppressReconnect_ = false;
     loadSlots();
     size_t existingSlot = MaxSlots;
     for (size_t i = 0; i < MaxSlots; ++i)
@@ -628,6 +695,15 @@ private:
     }
     peripheralConnectionId_ = 0;
     peripheralAddress_ = "";
+    reconnectDeadline_.cancel();
+    if (forceStopDisconnect_ || suppressReconnect_)
+    {
+      forceStopDisconnect_ = false;
+      operation_ = BluetoothProfileOperation::None;
+      pending_ = Pending::None;
+      status_ = BluetoothTargetStatus::Idle;
+      return;
+    }
     if (pairingConnectionId_ == connection.id)
     {
       pairingConnectionId_ = 0;
@@ -685,6 +761,7 @@ private:
         {
           selectedSlot_ = i + 1;
           status_ = BluetoothTargetStatus::Connected;
+          requestHostName();
           break;
         }
       }
@@ -710,11 +787,42 @@ private:
       }
       operation_ = BluetoothProfileOperation::None;
       status_ = BluetoothTargetStatus::Connected;
+      requestHostName();
     }
     else
     {
       fail("pairing_security_failed");
     }
+  }
+
+  void requestHostName()
+  {
+    if (peripheralConnectionId_ == 0 ||
+        !peripheralAddress_.equalsIgnoreCase(registry_.profile(selectedSlot_).address))
+      return;
+    ble_.discoverCharacteristic(peripheralConnectionId_, "1800", "2a00", 5000);
+  }
+
+  void handleNameDiscovered(const EspBleGattResult &result)
+  {
+    if (!result.serviceUuid.equalsIgnoreCase("1800") ||
+        !result.characteristicUuid.equalsIgnoreCase("2a00")) return;
+    if (!result.success || result.connectionId != peripheralConnectionId_ ||
+        !peripheralAddress_.equalsIgnoreCase(registry_.profile(selectedSlot_).address))
+      return;
+    ble_.readCharacteristic(result.connectionId, "1800", "2a00", 5000);
+  }
+
+  void handleNameRead(const EspBleGattResult &result)
+  {
+    if (!result.serviceUuid.equalsIgnoreCase("1800") ||
+        !result.characteristicUuid.equalsIgnoreCase("2a00")) return;
+    if (!result.success || result.connectionId != peripheralConnectionId_ ||
+        !peripheralAddress_.equalsIgnoreCase(registry_.profile(selectedSlot_).address))
+      return;
+    BluetoothProfileRegistry before = registry_;
+    if (!registry_.setHostName(selectedSlot_, result.value.c_str()) || !saveRegistry())
+      registry_ = before;
   }
 
   void loadSlots()
@@ -787,6 +895,7 @@ private:
     operation_ = BluetoothProfileOperation::None;
     pending_ = Pending::None;
     cancellingDisconnect_ = false;
+    reconnectDeadline_.cancel();
     status_ = BluetoothTargetStatus::Failed;
     return false;
   }
@@ -819,10 +928,14 @@ private:
   bool slotsLoaded_ = false;
   bool profilesLoaded_ = false;
   bool cancellingDisconnect_ = false;
+  bool forceStopDisconnect_ = false;
+  bool suppressReconnect_ = false;
   size_t deleteSlot_ = 0;
   size_t reconnectSlot_ = 0;
   uint32_t pairingStartedMs_ = 0;
   static constexpr uint32_t PairingTimeoutMs = 120000;
+  static constexpr uint32_t ReconnectTimeoutMs = 30000;
+  BluetoothOperationDeadline reconnectDeadline_;
   char error_[96] = {};
   EspBleConnectionId peripheralConnectionId_ = 0;
   EspBleConnectionId pairingConnectionId_ = 0;
@@ -830,6 +943,8 @@ private:
   EspBleListenerId connectedListener_ = EspBleInvalidListenerId;
   EspBleListenerId disconnectedListener_ = EspBleInvalidListenerId;
   EspBleListenerId securityListener_ = EspBleInvalidListenerId;
+  EspBleListenerId characteristicDiscoveredListener_ = EspBleInvalidListenerId;
+  EspBleListenerId characteristicReadListener_ = EspBleInvalidListenerId;
 };
 
 // ---------------------------------------------------------------------------

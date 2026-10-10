@@ -113,6 +113,28 @@ struct BluetoothTargetSnapshot
   char error[96] = {};
 };
 
+class BluetoothOperationDeadline
+{
+public:
+  void start(uint32_t now, uint32_t duration)
+  {
+    startedAt_ = now;
+    duration_ = duration;
+    active_ = true;
+  }
+  void cancel() { active_ = false; }
+  bool active() const { return active_; }
+  bool expired(uint32_t now) const
+  {
+    return active_ && static_cast<uint32_t>(now - startedAt_) >= duration_;
+  }
+
+private:
+  uint32_t startedAt_ = 0;
+  uint32_t duration_ = 0;
+  bool active_ = false;
+};
+
 // Transport-neutral boundary used by BluetoothHotkeyInputAdapter.  Slot
 // numbers are one-based, matching the top-row number printed on the keyboard.
 class BluetoothTargetController
@@ -147,6 +169,8 @@ public:
   virtual bool cancelPairing() { return false; }
   virtual bool deleteSlot(size_t) { return false; }
   virtual bool setSlotLabel(size_t, const char *) { return false; }
+  virtual bool forceDisconnect() { return false; }
+  virtual bool resetBluetooth() { return false; }
   virtual bool busy() const
   {
     return status() == BluetoothTargetStatus::Switching ||
