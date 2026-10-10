@@ -97,7 +97,7 @@ def test_examples_are_grouped_with_docs_and_compile_profiles():
     assert missing == []
 
 
-def test_phase7_settings_portal_is_offline_authenticated_and_bounded():
+def test_settings_portal_is_open_and_exposes_recovery_and_reset_controls():
     web = (ROOT / "src/ESP32KeyBridgeWeb.h").read_text(encoding="utf-8")
 
     assert 'server_.on("/", HTTP_GET' in web
@@ -111,8 +111,9 @@ def test_phase7_settings_portal_is_offline_authenticated_and_bounded():
     assert 'server_.on("/api/v1/bluetooth", HTTP_GET' in web
     assert 'server_.on("/api/v1/bluetooth/label", HTTP_PUT' in web
     assert 'server_.on("/api/v1/bluetooth/action", HTTP_POST' in web
+    assert 'server_.on("/api/v1/reset", HTTP_POST' in web
     assert 'server_.on("/healthz", HTTP_GET' in web
-    assert web.count("HTTP_POST") == 1
+    assert web.count("HTTP_POST") == 2
     assert web.count("HTTP_PUT") == 3
     assert "https://" not in web
     assert 'src="http' not in web
@@ -122,17 +123,26 @@ def test_phase7_settings_portal_is_offline_authenticated_and_bounded():
     assert 'server_.uri() != "/api"' in web
     assert '!server_.uri().startsWith("/api/")' in web
     assert 'String("http://") + WiFi.softAPIP().toString()' in web
-    assert "InvalidPortalCredentials" in web
-    assert "mode != DIGEST_AUTH" in web
-    assert "username.equalsConstantTime(portalUsername_)" in web
-    assert 'server_.requestAuthentication(DIGEST_AUTH, "ESP32 KeyBridge"' in web
-    assert "BASIC_AUTH" not in web
+    for forbidden in ["authenticate", "requestAuthentication", "DIGEST_AUTH", "BASIC_AUTH", "portalUsername", "portalPassword"]:
+        assert forbidden not in web
+    assert "WiFi.softAP(config.ssid, nullptr" in web
     assert "Bluetooth Profiles" in web
     assert "Cancel Pairing" in web
     assert "Pair / Replace" in web
     assert "setTimeout(pollBluetooth,1000)" in web
     assert "aria-live=\"polite\"" in web
     assert "root.contains(document.activeElement)" in web
+    assert "Stop / Force disconnect" in web
+    assert "Not reported by host" in web
+    assert "Bluetooth only" in web
+    assert "Reset everything" in web
+    assert "This erases Bluetooth bonds and profiles only" in web
+    assert "This erases Bluetooth, layouts, and macros" in web
+    assert "LED legend" in web
+    assert 'action == "stop"' in web
+    assert "hostName" in web and "appendJsonString(body, p.hostName)" in web
+    assert "bluetoothStatusLedPatternName" in web
+    assert "reset_already_in_progress" in web
 
 
 def test_usb_keyboard_to_ble_wires_persistent_profile_management():

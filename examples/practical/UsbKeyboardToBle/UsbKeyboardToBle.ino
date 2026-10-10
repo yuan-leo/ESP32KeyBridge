@@ -26,6 +26,7 @@
 #include <ESP32KeyBridgeEspUsbHost.h>
 #include <ESP32KeyBridgeMacroSettings.h>
 #include <ESP32KeyBridgePreferences.h>
+#include <ESP32KeyBridgeReset.h>
 #include <ESP32KeyBridgeSettings.h>
 #include <ESP32KeyBridgeSettingsNavigation.h>
 #include <ESP32KeyBridgeStatusLed.h>
@@ -53,6 +54,7 @@ esp32keybridge::KeyboardLayoutSettingsStore settingsStore(settingsNvs);
 esp32keybridge::KeyboardMacroSettings macroSettings;
 esp32keybridge::PreferencesMacroSettingsStorage macroNvs;
 esp32keybridge::KeyboardMacroSettingsStore macroStore(macroNvs);
+esp32keybridge::SettingsResetCoordinator settingsReset(bluetoothTargets);
 esp32keybridge::Esp32S3SettingsWebServer settingsWeb(layoutSettings, bridge);
 bool bluetoothAvailable = false;
 
@@ -64,7 +66,8 @@ void writeBluetoothStatusLed(uint32_t patternTime, bool available)
   esp32keybridge::BluetoothTargetSnapshot snapshot;
   bluetoothTargets.snapshot(snapshot);
   const esp32keybridge::BluetoothStatusLedFrame frame =
-      esp32keybridge::bluetoothStatusLedFrame(snapshot, patternTime, available, false);
+      esp32keybridge::bluetoothStatusLedFrame(
+          snapshot, patternTime, available, settingsReset.inProgress());
   static esp32keybridge::RgbColor previous;
   static bool havePrevious = false;
   if (!havePrevious || frame.color != previous)
@@ -189,9 +192,8 @@ void setup()
     return;
   }
 
-  // 4) Start the local settings website. Connect a phone to this WPA2 network,
-  // open http://192.168.4.1/, and sign in as admin / configure. Replace all
-  // development credentials before deploying a device.
+  // 4) Start the local settings website. Connect a phone to the intentionally
+  // open KeyBridge-Setup network and open http://192.168.4.1/.
   if (!settingsWeb.enableEditing(settingsStore, bridgeConfig, keyboardConfig))
   {
     Serial.println("Settings editing could not be enabled");
@@ -212,13 +214,17 @@ void setup()
     Serial.println("Bluetooth management could not be enabled");
     return;
   }
+  settingsReset.enableLayoutReset(settingsStore);
+  settingsReset.enableMacroReset(macroStore);
+  if (!settingsWeb.enableReset(settingsReset))
+  {
+    Serial.println("Reset controls could not be enabled");
+    return;
+  }
   esp32keybridge::SettingsAccessPointConfig accessPoint;
   accessPoint.ssid = "KeyBridge-Setup";
-  accessPoint.password = "keybridge";
   accessPoint.maxConnections = 1;
   accessPoint.captivePortal = true;
-  accessPoint.portalUsername = "admin";
-  accessPoint.portalPassword = "configure";
   esp32keybridge::SettingsWebError webError;
   if (!settingsWeb.begin(accessPoint, &webError))
   {
@@ -227,9 +233,7 @@ void setup()
   }
   else
   {
-    Serial.printf("Settings Wi-Fi: %s / %s\n", accessPoint.ssid, accessPoint.password);
-    Serial.printf("Portal login: %s / %s\n", accessPoint.portalUsername,
-                  accessPoint.portalPassword);
+    Serial.printf("Settings Wi-Fi (open): %s\n", accessPoint.ssid);
     Serial.printf("Settings URL: http://%s/\n", settingsWeb.address().toString().c_str());
   }
 }

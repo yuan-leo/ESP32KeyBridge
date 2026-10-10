@@ -16,6 +16,8 @@
 #include "ESP32KeyBridgeSettings.h"
 #include "ESP32KeyBridgeSettingsJson.h"
 #include "ESP32KeyBridgeSettingsNavigation.h"
+#include "ESP32KeyBridgeReset.h"
+#include "ESP32KeyBridgeStatusLed.h"
 
 namespace esp32keybridge
 {
@@ -45,7 +47,7 @@ footer{color:var(--muted);font-size:.86rem;margin-top:22px}code{color:var(--acce
 <body>
 <main>
 <header><div class="eyebrow">Local device settings</div><h1>ESP32 KeyBridge</h1><p class="lede">Choose how the attached keyboard is engraved and how the connected host interprets keys. Saving verifies the new NVS record before applying it.</p></header>
-<section class="card wide bluetooth" aria-labelledby="bluetooth-title"><div class="label">Bluetooth Profiles</div><div class="value bluetooth-summary" id="bluetooth-title">Checking Bluetooth profiles…</div><div class="grid" id="bluetooth-profiles"></div><div class="message" id="bluetooth-status" role="alert" aria-live="polite"></div></section>
+<section class="card wide bluetooth" aria-labelledby="bluetooth-title"><div class="label">Bluetooth Profiles</div><div class="value bluetooth-summary" id="bluetooth-title">Checking Bluetooth profiles…</div><div class="actions"><button id="bluetooth-stop" type="button">Stop / Force disconnect</button></div><p class="hint">LED legend: profile 1 blue, profile 2 green, profile 3 magenta; solid connected, breathing searching, color/white pairing, brief flash disconnected, amber resetting, triple red error.</p><div class="grid" id="bluetooth-profiles"></div><div class="message" id="bluetooth-status" role="alert" aria-live="polite"></div></section>
 <form id="settings-form">
 <section class="grid">
 <label class="card"><span class="label">Keyboard layout</span><select id="input-layout" required></select></label>
@@ -62,12 +64,14 @@ footer{color:var(--muted);font-size:.86rem;margin-top:22px}code{color:var(--acce
 <div id="macro-slots"></div>
 <div class="actions"><button id="save-macros" type="submit">Save macros</button><span class="message" id="macro-status" role="status"></span></div>
 </form>
+<section class="card macro-card"><div class="label">Factory reset</div><div class="value">Erase saved settings</div><p class="hint">This open setup network has no password. Anyone connected can change settings.</p><div class="actions"><button id="reset-bluetooth" type="button" class="danger">Bluetooth only</button><button id="reset-everything" type="button" class="danger">Reset everything</button><span class="message" id="reset-status" role="alert" aria-live="polite"></span></div></section>
 <footer>Served directly by the ESP32-S3. API: <code>/api/v1/config</code>, <code>/api/v1/macros</code>, <code>/api/v1/bluetooth</code>, and <code>/api/v1/status</code>.<span id="keyboard-status">Checking wired keyboard navigation…</span></footer>
 </main>
 <script>
 const $=id=>document.getElementById(id);
 let editable=false;
 let macroAvailable=false;
+let selectedBluetoothSlot=1;
 async function json(path){const r=await fetch(path,{cache:'no-store'});if(!r.ok)throw new Error(r.status);return r.json()}
 function message(text,error=false){$('save-status').textContent=text;$('save-status').classList.toggle('error',error)}
 function macroMessage(text,error=false){$('macro-status').textContent=text;$('macro-status').classList.toggle('error',error)}
@@ -75,8 +79,9 @@ function bluetoothMessage(text,error=false){$('bluetooth-status').textContent=te
 async function bluetoothAction(slot,action,confirmed=false){if(confirmed){const warning=action==='delete'?'Delete this profile? The current Bluetooth host may briefly disconnect.':'Replace this profile? Its old bond is removed immediately and cannot be restored if pairing is cancelled or times out.';if(!confirm(warning))return}bluetoothMessage('Sending Bluetooth request…');try{const r=await fetch('/api/v1/bluetooth/action',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({slot,action,confirm:confirmed})});const result=await r.json();if(!r.ok)throw new Error(result.message||result.error||r.status);bluetoothMessage('Bluetooth request accepted');renderBluetooth(result)}catch(e){bluetoothMessage('Bluetooth request failed: '+e.message,true)}}
 async function saveBluetoothLabel(slot,input){if(new TextEncoder().encode(input.value).length>24){bluetoothMessage('Label must contain at most 24 UTF-8 bytes',true);return}try{const r=await fetch('/api/v1/bluetooth/label',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({slot,label:input.value})});const result=await r.json();if(!r.ok)throw new Error(result.message||result.error||r.status);bluetoothMessage('Label saved');renderBluetooth(result)}catch(e){bluetoothMessage('Label save failed: '+e.message,true)}}
 function profileButton(text,disabled,handler,danger=false){const b=document.createElement('button');b.type='button';b.textContent=text;b.disabled=disabled;if(danger)b.className='danger';b.addEventListener('click',handler);return b}
-function renderBluetooth(s){if(!s.available){$('bluetooth-title').textContent='Bluetooth management unavailable';$('bluetooth-profiles').replaceChildren();return}$('bluetooth-title').textContent=`${s.connectedCount} device${s.connectedCount===1?'':'s'} connected · Profile ${s.selectedSlot} selected · ${s.status}${s.pairingSecondsRemaining?` · ${s.pairingSecondsRemaining}s remaining`:''}`;const root=$('bluetooth-profiles');if(root.contains(document.activeElement))return;const cards=s.profiles.map(p=>{const card=document.createElement('article');card.className='card profile-card'+(p.selected?' selected':'')+(p.connected?' connected':'');const title=document.createElement('div');title.className='profile-title';const strong=document.createElement('strong');strong.textContent='Profile '+p.slot;const badges=document.createElement('span');badges.className='badges';badges.textContent=[p.selected?'Selected':'',p.connected?'Connected':'',p.state].filter(Boolean).join(' · ');title.append(strong,badges);const input=document.createElement('input');input.value=p.label;input.maxLength=24;input.setAttribute('aria-label','Profile '+p.slot+' label');const address=document.createElement('div');address.className='address';address.textContent=p.occupied?p.address:'Empty profile';const actions=document.createElement('div');actions.className='profile-actions';const busy=s.operation!=='none';if(p.occupied)actions.append(profileButton('Connect',busy||p.connected,()=>bluetoothAction(p.slot,'connect')));actions.append(profileButton(p.occupied?'Pair / Replace':'Pair',busy,()=>bluetoothAction(p.slot,'pair',true)));if(p.occupied)actions.append(profileButton('Delete',busy,()=>bluetoothAction(p.slot,'delete',true),true));actions.append(profileButton('Rename',busy,()=>saveBluetoothLabel(p.slot,input)));if(s.operation==='pair'&&p.selected)actions.append(profileButton('Cancel Pairing',false,()=>bluetoothAction(p.slot,'cancel')));card.append(title,input,address,actions);return card});root.replaceChildren(...cards);if(s.error)bluetoothMessage(s.error,true)}
+function renderBluetooth(s){if(!s.available){$('bluetooth-title').textContent='Bluetooth management unavailable';$('bluetooth-profiles').replaceChildren();return}selectedBluetoothSlot=s.selectedSlot;$('bluetooth-title').textContent=`${s.connectedCount} device${s.connectedCount===1?'':'s'} connected · Profile ${s.selectedSlot} selected · ${s.status} · LED ${s.indicator}${s.pairingSecondsRemaining?` · ${s.pairingSecondsRemaining}s remaining`:''}`;const root=$('bluetooth-profiles');if(root.contains(document.activeElement))return;const cards=s.profiles.map(p=>{const card=document.createElement('article');card.className='card profile-card'+(p.selected?' selected':'')+(p.connected?' connected':'');const title=document.createElement('div');title.className='profile-title';const strong=document.createElement('strong');strong.textContent='Profile '+p.slot;const badges=document.createElement('span');badges.className='badges';badges.textContent=[p.selected?'Selected':'',p.connected?'Connected':'',p.state].filter(Boolean).join(' · ');title.append(strong,badges);const input=document.createElement('input');input.value=p.label;input.maxLength=24;input.setAttribute('aria-label','Profile '+p.slot+' label');const address=document.createElement('div');address.className='address';address.textContent=(p.hostName||'Not reported by host')+' · '+(p.occupied?p.address:'Empty profile');const actions=document.createElement('div');actions.className='profile-actions';const busy=s.operation!=='none';if(p.occupied)actions.append(profileButton('Connect',busy||p.connected,()=>bluetoothAction(p.slot,'connect')));actions.append(profileButton(p.occupied?'Pair / Replace':'Pair',busy,()=>bluetoothAction(p.slot,'pair',true)));if(p.occupied)actions.append(profileButton('Delete',busy,()=>bluetoothAction(p.slot,'delete',true),true));actions.append(profileButton('Rename',false,()=>saveBluetoothLabel(p.slot,input)));if(s.operation==='pair'&&p.selected)actions.append(profileButton('Cancel Pairing',false,()=>bluetoothAction(p.slot,'cancel')));card.append(title,input,address,actions);return card});root.replaceChildren(...cards);if(s.error)bluetoothMessage(s.error,true)}
 async function pollBluetooth(){if(document.hidden){setTimeout(pollBluetooth,1000);return}try{renderBluetooth(await json('/api/v1/bluetooth'))}catch(e){$('bluetooth-title').textContent='Bluetooth monitor unavailable';bluetoothMessage('Could not refresh Bluetooth status',true)}finally{setTimeout(pollBluetooth,1000)}}
+async function resetDevice(scope){const everything=scope==='everything';const warning=everything?'This erases Bluetooth, layouts, and macros. The device will restart. Continue?':'This erases Bluetooth bonds and profiles only. Layouts and macros are preserved. The device will restart. Continue?';if(!confirm(warning))return;const status=$('reset-status');status.textContent='Resetting…';status.classList.remove('error');try{const r=await fetch('/api/v1/reset',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({scope,confirm:true})});const result=await r.json();if(!r.ok)throw new Error(result.message||result.error||r.status);status.textContent='Reset accepted. Waiting for restart…';$('reset-bluetooth').disabled=true;$('reset-everything').disabled=true}catch(e){status.textContent='Reset failed: '+e.message;status.classList.add('error')}}
 function ensureToggle(value){const s=$('toggle');if(![...s.options].some(o=>Number(o.value)===value)){const o=document.createElement('option');o.value=value;o.textContent='HID 0x'+value.toString(16).padStart(2,'0').toUpperCase();s.append(o)}s.value=String(value)}
 async function load(){try{const [l,c]=await Promise.all([json('/api/v1/layouts'),json('/api/v1/config')]);for(const id of ['input-layout','host-layout']){const s=$(id);s.replaceChildren(...l.layouts.map(name=>{const o=document.createElement('option');o.value=name;o.textContent=name;return o}))}$('input-layout').value=c.inputLayout;$('host-layout').value=c.hostLayout;$('conversion').checked=c.layoutConversionEnabled;ensureToggle(c.layoutConversionToggleUsage);editable=!!c.editable;$('save').disabled=!editable;if(!editable)message('Read-only mode')}catch(e){editable=false;message('Configuration unavailable',true);$('save').disabled=true}}
 function macroOptions(){const values=[[0,'Disabled']];for(let i=1;i<=12;i++)values.push([57+i,'F'+i]);for(let i=13;i<=24;i++)values.push([91+i,'F'+i]);return values}
@@ -90,6 +95,9 @@ let navWasAvailable=false;
 async function pollNavigation(){if(document.hidden){navWasAvailable=false;$('keyboard-status').textContent='Wired keyboard navigation paused';setTimeout(pollNavigation,250);return}try{const n=await json('/api/v1/navigation');$('keyboard-status').textContent=!n.available?'Wired keyboard navigation unavailable':n.capture?'Wired keyboard navigation active: Tab/arrows, Enter/Space, Esc':'Release all keys to start wired keyboard navigation';if(n.capture&&!navWasAvailable&&document.activeElement===document.body)moveFocus(1);navWasAvailable=!!n.capture;if(n.action&&n.action!=='none')navigate(n.action)}catch(e){navWasAvailable=false;$('keyboard-status').textContent='Wired keyboard navigation disconnected'}finally{setTimeout(pollNavigation,80)}}
 $('settings-form').addEventListener('submit',async e=>{e.preventDefault();$('save').disabled=true;message('Saving…');const body={schemaVersion:1,inputLayout:$('input-layout').value,hostLayout:$('host-layout').value,layoutConversionEnabled:$('conversion').checked,layoutConversionToggleUsage:Number($('toggle').value)};try{const r=await fetch('/api/v1/config',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});const result=await r.json();if(!r.ok)throw new Error(result.message||result.error||r.status);message('Saved and applied');await load();await refreshStatus()}catch(err){message('Save failed: '+err.message,true)}finally{$('save').disabled=!editable}});
 $('macro-form').addEventListener('submit',async e=>{e.preventDefault();$('save-macros').disabled=true;macroMessage('Saving…');const body={schemaVersion:1,slots:[0,1,2,3].map(i=>({triggerUsage:Number($('macro-trigger-'+i).value),text:$('macro-text-'+i).value}))};try{const r=await fetch('/api/v1/macros',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});const result=await r.json();if(!r.ok)throw new Error(result.message||result.error||r.status);macroMessage('Saved and applied');await loadMacros()}catch(err){macroMessage('Save failed: '+err.message,true)}finally{$('save-macros').disabled=!editable||!macroAvailable}});
+$('bluetooth-stop').addEventListener('click',()=>bluetoothAction(selectedBluetoothSlot,'stop'));
+$('reset-bluetooth').addEventListener('click',()=>resetDevice('bluetooth'));
+$('reset-everything').addEventListener('click',()=>resetDevice('everything'));
 buildMacroRows();load().then(loadMacros);refreshStatus();pollNavigation();pollBluetooth();setInterval(refreshStatus,1500);
 </script>
 </body>
@@ -100,12 +108,10 @@ enum class SettingsWebErrorCode : uint8_t
 {
   None = 0,
   InvalidSsid,
-  InvalidPassword,
   InvalidChannel,
   InvalidMaxConnections,
   WifiStartFailed,
   DnsStartFailed,
-  InvalidPortalCredentials,
 };
 
 struct SettingsWebError
@@ -117,13 +123,10 @@ struct SettingsWebError
 struct SettingsAccessPointConfig
 {
   const char *ssid = nullptr;
-  const char *password = nullptr;
   uint8_t channel = 1;
   bool hidden = false;
   uint8_t maxConnections = 1;
   bool captivePortal = false;
-  const char *portalUsername = nullptr;
-  const char *portalPassword = nullptr;
 };
 
 // ESP32-S3 SoftAP plus the local settings website. The sketch owns scheduling
@@ -132,8 +135,8 @@ struct SettingsAccessPointConfig
 // validated, persisted PUT endpoint. Phase 4 can bind a keyboard-navigation
 // source whose capture lease is held only while the browser page is polling.
 // Phase 6 optionally adds wildcard DNS and captive-portal probe redirects.
-// Phase 7 optionally protects the page and registered routes with HTTP Digest
-// authentication while leaving captive discovery probes reachable.
+// The setup access point and local page are intentionally open; physical
+// proximity to the device is the access boundary.
 class Esp32S3SettingsWebServer
 {
 public:
@@ -192,6 +195,13 @@ public:
 
   bool bluetoothManagementEnabled() const { return bluetooth_ != nullptr; }
 
+  bool enableReset(SettingsResetCoordinator &reset)
+  {
+    if (started_) return false;
+    reset_ = &reset;
+    return true;
+  }
+
   bool enableMacroEditing(KeyboardMacroSettings &settings,
                           KeyboardMacroSettingsStore &store,
                           ESP32KeyBridgeConfig &config)
@@ -220,11 +230,6 @@ public:
       return fail(error, SettingsWebErrorCode::InvalidSsid,
                   "SoftAP SSID must contain 1 to 32 bytes");
     }
-    if (!validLength(config.password, 8, 63))
-    {
-      return fail(error, SettingsWebErrorCode::InvalidPassword,
-                  "SoftAP password must contain 8 to 63 bytes");
-    }
     if (config.channel < 1 || config.channel > 13)
     {
       return fail(error, SettingsWebErrorCode::InvalidChannel,
@@ -235,24 +240,13 @@ public:
       return fail(error, SettingsWebErrorCode::InvalidMaxConnections,
                   "SoftAP maxConnections must be between 1 and 4");
     }
-    const bool havePortalUsername = config.portalUsername != nullptr;
-    const bool havePortalPassword = config.portalPassword != nullptr;
-    if (havePortalUsername != havePortalPassword ||
-        (havePortalUsername &&
-         (!validLength(config.portalUsername, 1, 32) ||
-          !validLength(config.portalPassword, 8, 63))))
-    {
-      return fail(error, SettingsWebErrorCode::InvalidPortalCredentials,
-                  "portal credentials require a 1 to 32 byte username and an 8 to 63 byte password");
-    }
-
     if (!handlersRegistered_)
     {
       registerHandlers();
       handlersRegistered_ = true;
     }
     if (!WiFi.mode(WIFI_AP) ||
-        !WiFi.softAP(config.ssid, config.password, config.channel,
+        !WiFi.softAP(config.ssid, nullptr, config.channel,
                      config.hidden ? 1 : 0, config.maxConnections))
     {
       WiFi.softAPdisconnect(true);
@@ -270,17 +264,6 @@ public:
                   "could not start captive-portal DNS");
     }
 
-    authenticationEnabled_ = havePortalUsername;
-    memset(portalUsername_, 0, sizeof(portalUsername_));
-    memset(portalPassword_, 0, sizeof(portalPassword_));
-    if (authenticationEnabled_)
-    {
-      memcpy(portalUsername_, config.portalUsername,
-             strlen(config.portalUsername) + 1);
-      memcpy(portalPassword_, config.portalPassword,
-             strlen(config.portalPassword) + 1);
-    }
-
     server_.begin();
     started_ = true;
     return true;
@@ -295,6 +278,11 @@ public:
         dnsServer_.processNextRequest();
       }
       server_.handleClient();
+      if (rebootPending_ &&
+          static_cast<uint32_t>(millis() - rebootRequestedMs_) >= 1000)
+      {
+        ESP.restart();
+      }
       if (navigationLeaseActive_ &&
           static_cast<uint32_t>(millis() - lastNavigationPollMs_) >
               NavigationLeaseMilliseconds)
@@ -316,15 +304,11 @@ public:
     WiFi.softAPdisconnect(true);
     releaseNavigationCapture();
     captivePortalEnabled_ = false;
-    authenticationEnabled_ = false;
-    memset(portalUsername_, 0, sizeof(portalUsername_));
-    memset(portalPassword_, 0, sizeof(portalPassword_));
     started_ = false;
   }
 
   bool started() const { return started_; }
   bool captivePortalEnabled() const { return started_ && captivePortalEnabled_; }
-  bool authenticationEnabled() const { return started_ && authenticationEnabled_; }
   IPAddress address() const { return started_ ? WiFi.softAPIP() : IPAddress(); }
   uint8_t connectedClients() const { return started_ ? WiFi.softAPgetStationNum() : 0; }
 
@@ -375,97 +359,47 @@ private:
         "default-src 'self'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; connect-src 'self'; frame-ancestors 'none'");
   }
 
-  bool authorize()
-  {
-    const bool authenticated = authenticationEnabled_ &&
-                               server_.authenticate(
-                                   [this](HTTPAuthMethod mode, String username,
-                                          String params[]) -> String * {
-                                     (void)params;
-                                     if (mode != DIGEST_AUTH ||
-                                         !username.equalsConstantTime(portalUsername_))
-                                     {
-                                       return nullptr;
-                                     }
-                                     return new String(portalPassword_);
-                                   });
-    if (!authenticationEnabled_ || authenticated)
-    {
-      return true;
-    }
-    commonHeaders();
-    server_.requestAuthentication(DIGEST_AUTH, "ESP32 KeyBridge",
-                                  "Authentication required\n");
-    return false;
-  }
-
   void registerHandlers()
   {
     server_.on("/", HTTP_GET, [this]() {
-      if (!authorize())
-      {
-        return;
-      }
       commonHeaders();
       server_.send_P(200, PSTR("text/html; charset=utf-8"),
                      detail::kSettingsIndexHtml);
     });
     server_.on("/api/v1/config", HTTP_GET, [this]() {
-      if (authorize())
-      {
-        sendConfig();
-      }
+      sendConfig();
     });
     server_.on("/api/v1/config", HTTP_PUT, [this]() {
-      if (authorize())
-      {
-        updateConfig();
-      }
+      updateConfig();
     });
     server_.on("/api/v1/layouts", HTTP_GET, [this]() {
-      if (authorize())
-      {
-        sendLayouts();
-      }
+      sendLayouts();
     });
     server_.on("/api/v1/macros", HTTP_GET, [this]() {
-      if (authorize())
-      {
-        sendMacros();
-      }
+      sendMacros();
     });
     server_.on("/api/v1/macros", HTTP_PUT, [this]() {
-      if (authorize())
-      {
-        updateMacros();
-      }
+      updateMacros();
     });
     server_.on("/api/v1/navigation", HTTP_GET, [this]() {
-      if (authorize())
-      {
-        sendNavigation();
-      }
+      sendNavigation();
     });
     server_.on("/api/v1/status", HTTP_GET, [this]() {
-      if (authorize())
-      {
-        sendStatus();
-      }
+      sendStatus();
     });
     server_.on("/api/v1/bluetooth", HTTP_GET, [this]() {
-      if (authorize()) sendBluetooth();
+      sendBluetooth();
     });
     server_.on("/api/v1/bluetooth/label", HTTP_PUT, [this]() {
-      if (authorize()) updateBluetoothLabel();
+      updateBluetoothLabel();
     });
     server_.on("/api/v1/bluetooth/action", HTTP_POST, [this]() {
-      if (authorize()) updateBluetoothAction();
+      updateBluetoothAction();
+    });
+    server_.on("/api/v1/reset", HTTP_POST, [this]() {
+      updateReset();
     });
     server_.on("/healthz", HTTP_GET, [this]() {
-      if (!authorize())
-      {
-        return;
-      }
       commonHeaders();
       server_.send(200, "text/plain; charset=utf-8", "ok\n");
     });
@@ -685,6 +619,10 @@ private:
     body += ",\"selectedSlot\":"; body += snapshot.selectedSlot;
     body += ",\"status\":"; appendJsonString(body, bluetoothStatusName(snapshot.status));
     body += ",\"operation\":"; appendJsonString(body, bluetoothOperationName(snapshot.operation));
+    const BluetoothStatusLedFrame indicator = bluetoothStatusLedFrame(
+        snapshot, millis(), true, reset_ != nullptr && reset_->inProgress());
+    body += ",\"indicator\":";
+    appendJsonString(body, bluetoothStatusLedPatternName(indicator.pattern));
     body += ",\"pairingSecondsRemaining\":"; body += snapshot.pairingSecondsRemaining;
     body += ",\"error\":"; appendJsonString(body, snapshot.error);
     body += ",\"profiles\":[";
@@ -694,6 +632,7 @@ private:
       const BluetoothProfileSnapshot &p = snapshot.profiles[i];
       body += "{\"slot\":"; body += p.slot;
       body += ",\"label\":"; appendJsonString(body, p.label);
+      body += ",\"hostName\":"; appendJsonString(body, p.hostName);
       body += ",\"address\":"; appendJsonString(body, p.occupied ? p.address : "");
       body += ",\"occupied\":"; body += p.occupied ? "true" : "false";
       body += ",\"selected\":"; body += p.selected ? "true" : "false";
@@ -747,7 +686,8 @@ private:
     if (confirmation == "true") confirm = true;
     else if (confirmation == "false") confirm = false;
     else return false;
-    return action == "connect" || action == "pair" || action == "cancel" || action == "delete";
+    return action == "connect" || action == "pair" || action == "cancel" ||
+           action == "delete" || action == "stop";
   }
 
   void updateBluetoothLabel()
@@ -781,12 +721,73 @@ private:
     BluetoothTargetSnapshot before; bluetooth_->snapshot(before);
     if (action == "connect" && !before.profiles[slot - 1].occupied)
     { sendApiError(409, "empty_slot", "slot", "an empty profile cannot connect"); return; }
-    bool ok = action == "connect" ? bluetooth_->selectSlot(slot)
+    bool ok = action == "stop" ? bluetooth_->forceDisconnect()
+        : action == "connect" ? bluetooth_->selectSlot(slot)
         : action == "pair" ? bluetooth_->pairSlot(slot)
         : action == "cancel" ? (slot == before.selectedSlot && bluetooth_->cancelPairing())
                               : bluetooth_->deleteSlot(slot);
-    if (!ok) { sendApiError(bluetooth_->busy() ? 409 : 500, "operation_failed", nullptr, "Bluetooth operation was rejected"); return; }
+    if (!ok)
+    {
+      sendApiError(bluetooth_->busy() ? 409 : 500, "operation_failed", nullptr,
+                   bluetooth_->busy()
+                       ? "Stop the current Bluetooth operation first, then retry"
+                       : "Bluetooth operation could not be completed");
+      return;
+    }
     sendBluetooth(action == "connect" || action == "pair" || action == "delete" ? 202 : 200);
+  }
+
+  static bool decodeResetBody(const String &body, SettingsResetScope &scope)
+  {
+    if (body == "{\"scope\":\"bluetooth\",\"confirm\":true}")
+    {
+      scope = SettingsResetScope::BluetoothOnly;
+      return true;
+    }
+    if (body == "{\"scope\":\"everything\",\"confirm\":true}")
+    {
+      scope = SettingsResetScope::Everything;
+      return true;
+    }
+    return false;
+  }
+
+  void updateReset()
+  {
+    if (reset_ == nullptr)
+    {
+      sendApiError(404, "not_available", nullptr, "Reset controls are not configured");
+      return;
+    }
+    if (rebootPending_ || reset_->inProgress())
+    {
+      sendApiError(409, "reset_already_in_progress", nullptr,
+                   "Reset is already in progress; the device will restart shortly");
+      return;
+    }
+    SettingsResetScope scope;
+    if (!decodeResetBody(server_.arg("plain"), scope))
+    {
+      sendApiError(400, "confirmation_required", "confirm",
+                   "Choose Bluetooth only or everything and confirm the reset");
+      return;
+    }
+    SettingsResetError error;
+    if (!reset_->reset(scope, &error))
+    {
+      const bool duplicate = error.code == SettingsResetErrorCode::AlreadyInProgress;
+      sendApiError(duplicate ? 409 : 500,
+                   duplicate ? "reset_already_in_progress" : "reset_failed", nullptr,
+                   error.message);
+      return;
+    }
+    rebootPending_ = true;
+    rebootRequestedMs_ = millis();
+    commonHeaders();
+    server_.send(202, "application/json; charset=utf-8",
+                 scope == SettingsResetScope::BluetoothOnly
+                     ? "{\"accepted\":true,\"scope\":\"bluetooth\"}\n"
+                     : "{\"accepted\":true,\"scope\":\"everything\"}\n");
   }
 
   void sendStatus()
@@ -925,17 +926,17 @@ private:
   ESP32KeyBridgeConfig *macroConfig_ = nullptr;
   SettingsNavigationSource *navigation_ = nullptr;
   BluetoothTargetController *bluetooth_ = nullptr;
+  SettingsResetCoordinator *reset_ = nullptr;
   DNSServer dnsServer_;
   WebServer server_;
-  char portalUsername_[33] = {};
-  char portalPassword_[64] = {};
   static constexpr uint32_t NavigationLeaseMilliseconds = 1200;
   uint32_t lastNavigationPollMs_ = 0;
+  uint32_t rebootRequestedMs_ = 0;
   bool handlersRegistered_ = false;
   bool started_ = false;
   bool captivePortalEnabled_ = false;
-  bool authenticationEnabled_ = false;
   bool navigationLeaseActive_ = false;
+  bool rebootPending_ = false;
 };
 
 } // namespace esp32keybridge

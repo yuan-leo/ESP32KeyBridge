@@ -1,8 +1,8 @@
 // Phase 7 bring-up for the ESP32-S3 local settings website.
 //
-// Connect a phone to the "KeyBridge-Setup" Wi-Fi network with password
-// "keybridge", then open http://192.168.4.1/ and sign in as "admin" with
-// password "configure". Change all credentials beyond local development.
+// Connect a phone to the open "KeyBridge-Setup" Wi-Fi network, then open
+// http://192.168.4.1/. This example has no Bluetooth controller, so its reset
+// controls report unavailable instead of erasing layout or macro settings.
 
 #include <ESP32KeyBridge.h>
 #include <ESP32KeyBridgeMacroSettings.h>
@@ -93,11 +93,8 @@ void setup()
 
   esp32keybridge::SettingsAccessPointConfig accessPoint;
   accessPoint.ssid = "KeyBridge-Setup";
-  accessPoint.password = "keybridge";
   accessPoint.maxConnections = 1;
   accessPoint.captivePortal = true;
-  accessPoint.portalUsername = "admin";
-  accessPoint.portalPassword = "configure";
 
   esp32keybridge::SettingsWebError webError;
   if (!settingsWeb.begin(accessPoint, &webError))
@@ -108,9 +105,7 @@ void setup()
   }
 
   Serial.printf("Wi-Fi: %s\n", accessPoint.ssid);
-  Serial.printf("Password: %s\n", accessPoint.password);
-  Serial.printf("Portal login: %s / %s\n", accessPoint.portalUsername,
-                accessPoint.portalPassword);
+  Serial.println("Network security: open");
   Serial.printf("Open: http://%s/\n", settingsWeb.address().toString().c_str());
 }
 
