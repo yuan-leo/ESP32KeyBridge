@@ -821,6 +821,15 @@ public:
   size_t selectedSlot() const override { return selected; }
   esp32keybridge::BluetoothTargetStatus status() const override { return state; }
   uint32_t nowMilliseconds() const override { return now; }
+  bool snapshot(esp32keybridge::BluetoothTargetSnapshot &out) const override
+  {
+    out = snapshotValue;
+    return true;
+  }
+  bool cancelPairing() override { return true; }
+  bool deleteSlot(size_t) override { return true; }
+  bool setSlotLabel(size_t, const char *) override { return true; }
+  bool busy() const override { return false; }
 
   size_t slots = 3;
   size_t selected = 1;
@@ -829,6 +838,7 @@ public:
   size_t pairCalls = 0;
   uint32_t now = 0;
   bool accept = true;
+  esp32keybridge::BluetoothTargetSnapshot snapshotValue;
   esp32keybridge::BluetoothTargetStatus state =
       esp32keybridge::BluetoothTargetStatus::Idle;
 };
@@ -839,22 +849,31 @@ static void test_bluetooth_target_hotkeys_are_consumed()
   FakeBluetoothTarget target;
   esp32keybridge::BluetoothHotkeyInputAdapter hotkeys(keyboard, target);
 
-  keyboard.press(esp32keybridge::KeyboardUsage::ScrollLock);
-  keyboard.press(esp32keybridge::KeyboardUsage::Digit2);
-  hotkeys.update();
-  assert(target.selectCalls == 1);
-  assert(target.lastSlot == 2);
-  assert(hotkeys.keys().count() == 0);
-
-  keyboard.clear();
-  hotkeys.update();
-  assert(hotkeys.keys().count() == 0); // a handled chord is not a Scroll Lock tap
+  const esp32keybridge::KeyboardUsage selectors[] = {
+      esp32keybridge::KeyboardUsage::Digit1,
+      esp32keybridge::KeyboardUsage::Digit2,
+      esp32keybridge::KeyboardUsage::Digit3,
+  };
+  for (size_t slot = 1; slot <= 3; ++slot)
+  {
+    keyboard.press(esp32keybridge::KeyboardUsage::ScrollLock);
+    keyboard.press(selectors[slot - 1]);
+    hotkeys.update();
+    assert(target.selectCalls == slot);
+    assert(target.lastSlot == slot);
+    assert(target.selected == slot);
+    assert(target.pairCalls == 0);
+    assert(hotkeys.keys().count() == 0);
+    keyboard.clear();
+    hotkeys.update();
+    assert(hotkeys.keys().count() == 0);
+  }
 
   keyboard.press(esp32keybridge::KeyboardUsage::ScrollLock);
   keyboard.press(esp32keybridge::KeyboardUsage::Digit0);
   hotkeys.update();
   assert(target.pairCalls == 1);
-  assert(target.lastSlot == 2); // pair the currently selected slot
+  assert(target.lastSlot == 3); // pair the currently selected slot
   assert(hotkeys.keys().count() == 0);
 }
 

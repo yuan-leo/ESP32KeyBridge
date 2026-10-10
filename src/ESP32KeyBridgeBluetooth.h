@@ -61,7 +61,54 @@ enum class BluetoothTargetStatus : uint8_t
   Switching,
   Pairing,
   Connected,
+  Deleting,
   Failed,
+};
+
+enum class BluetoothProfileOperation : uint8_t
+{
+  None = 0,
+  Connecting,
+  Pairing,
+  Cancelling,
+  Deleting,
+};
+
+enum class BluetoothProfileDisplayState : uint8_t
+{
+  Empty = 0,
+  Remembered,
+  Selected,
+  Connecting,
+  Pairing,
+  Connected,
+  Deleting,
+  Failed,
+};
+
+struct BluetoothProfileSnapshot
+{
+  static constexpr size_t MaxLabelBytes = 24;
+  size_t slot = 0;
+  char label[MaxLabelBytes + 1] = {};
+  char address[18] = {};
+  bool occupied = false;
+  bool selected = false;
+  bool connected = false;
+  BluetoothProfileDisplayState state = BluetoothProfileDisplayState::Empty;
+};
+
+struct BluetoothTargetSnapshot
+{
+  static constexpr size_t MaxSlots = 3;
+  BluetoothProfileSnapshot profiles[MaxSlots];
+  size_t profileCount = 0;
+  size_t connectedCount = 0;
+  size_t selectedSlot = 1;
+  BluetoothTargetStatus status = BluetoothTargetStatus::Idle;
+  BluetoothProfileOperation operation = BluetoothProfileOperation::None;
+  uint32_t pairingSecondsRemaining = 0;
+  char error[96] = {};
 };
 
 // Transport-neutral boundary used by BluetoothHotkeyInputAdapter.  Slot
@@ -77,6 +124,33 @@ public:
   virtual size_t selectedSlot() const = 0;
   virtual BluetoothTargetStatus status() const = 0;
   virtual uint32_t nowMilliseconds() const = 0;
+  virtual bool snapshot(BluetoothTargetSnapshot &out) const
+  {
+    out = BluetoothTargetSnapshot();
+    out.profileCount = slotCount() > BluetoothTargetSnapshot::MaxSlots
+        ? BluetoothTargetSnapshot::MaxSlots
+        : slotCount();
+    out.selectedSlot = selectedSlot();
+    out.status = status();
+    for (size_t i = 0; i < out.profileCount; ++i)
+    {
+      out.profiles[i].slot = i + 1;
+      out.profiles[i].selected = i + 1 == out.selectedSlot;
+      out.profiles[i].state = out.profiles[i].selected
+          ? BluetoothProfileDisplayState::Selected
+          : BluetoothProfileDisplayState::Empty;
+    }
+    return true;
+  }
+  virtual bool cancelPairing() { return false; }
+  virtual bool deleteSlot(size_t) { return false; }
+  virtual bool setSlotLabel(size_t, const char *) { return false; }
+  virtual bool busy() const
+  {
+    return status() == BluetoothTargetStatus::Switching ||
+           status() == BluetoothTargetStatus::Pairing ||
+           status() == BluetoothTargetStatus::Deleting;
+  }
 };
 
 // Decorates any keyboard-shaped InputAdapter with the Bluetooth target chord:
@@ -263,6 +337,8 @@ private:
         return ((age / 125) & 1u) == 0 ? !lockState_.scrollLock : lockState_.scrollLock;
       case BluetoothTargetStatus::Pairing:
         return ((age / 250) & 1u) == 0 ? !lockState_.scrollLock : lockState_.scrollLock;
+      case BluetoothTargetStatus::Deleting:
+        return ((age / 125) & 1u) == 0 ? !lockState_.scrollLock : lockState_.scrollLock;
       case BluetoothTargetStatus::Connected:
         return age < 400 ? !lockState_.scrollLock : lockState_.scrollLock;
       case BluetoothTargetStatus::Failed:
