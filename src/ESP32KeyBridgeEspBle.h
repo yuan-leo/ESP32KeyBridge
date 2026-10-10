@@ -490,6 +490,7 @@ public:
       p.connected = saved.occupied && peripheralConnectionId_ != 0 &&
           peripheralAddress_.equalsIgnoreCase(saved.address);
       strncpy(p.label, saved.label, sizeof(p.label) - 1);
+      strncpy(p.hostName, saved.hostName, sizeof(p.hostName) - 1);
       if (saved.occupied) strncpy(p.address, saved.address, sizeof(p.address) - 1);
       p.state = p.connected ? BluetoothProfileDisplayState::Connected
           : (operation_ == BluetoothProfileOperation::Pairing && p.selected)

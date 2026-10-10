@@ -13,6 +13,7 @@ struct BluetoothProfileRecord
 {
   char address[18] = {};
   char label[BluetoothProfileSnapshot::MaxLabelBytes + 1] = {};
+  char hostName[BluetoothProfileSnapshot::MaxHostNameBytes + 1] = {};
   uint8_t addressType = 0;
   bool occupied = false;
 };
@@ -29,6 +30,7 @@ public:
   bool assign(size_t slot, const char *address, uint8_t addressType);
   bool clear(size_t slot);
   bool setLabel(size_t slot, const char *label);
+  bool setHostName(size_t slot, const char *hostName);
   int findAddress(const char *address, uint8_t addressType) const;
   bool operator==(const BluetoothProfileRegistry &other) const;
   bool operator!=(const BluetoothProfileRegistry &other) const { return !(*this == other); }
@@ -49,8 +51,8 @@ enum class BluetoothProfileSettingsDecodeStatus : uint8_t
 class BluetoothProfileSettingsCodec
 {
 public:
-  static constexpr uint8_t RecordVersion = 1;
-  static constexpr size_t EncodedSize = 160;
+  static constexpr uint8_t RecordVersion = 2;
+  static constexpr size_t EncodedSize = 352;
   static bool encode(const BluetoothProfileRegistry &registry, uint32_t generation,
                      uint8_t *out, size_t capacity);
   static BluetoothProfileSettingsDecodeStatus decode(const uint8_t *data, size_t size,

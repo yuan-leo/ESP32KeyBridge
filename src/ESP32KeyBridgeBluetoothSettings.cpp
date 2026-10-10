@@ -10,8 +10,12 @@ constexpr uint8_t kMagic[4] = {'E', 'K', 'B', 'P'};
 constexpr size_t kGeneration = 8;
 constexpr size_t kSelected = 12;
 constexpr size_t kProfiles = 16;
-constexpr size_t kStride = 45;
+constexpr size_t kStride = 110;
 constexpr size_t kChecksum = BluetoothProfileSettingsCodec::EncodedSize - 4;
+constexpr uint8_t kLegacyVersion = 1;
+constexpr size_t kLegacyEncodedSize = 160;
+constexpr size_t kLegacyStride = 45;
+constexpr size_t kLegacyChecksum = kLegacyEncodedSize - 4;
 
 void write32(uint8_t *p, size_t o, uint32_t v)
 {
@@ -57,11 +61,11 @@ bool normalizeAddress(const char *source, char (&out)[18])
   out[17] = '\0';
   return true;
 }
-bool validUtf8(const char *text, size_t &length)
+bool validUtf8(const char *text, size_t maximumBytes, size_t &length)
 {
   if (text == nullptr) return false;
   length = strlen(text);
-  if (length > BluetoothProfileSnapshot::MaxLabelBytes) return false;
+  if (length > maximumBytes) return false;
   for (size_t i = 0; i < length;)
   {
     const uint8_t c = static_cast<uint8_t>(text[i]);
@@ -106,7 +110,8 @@ ReadRecord readRecord(BluetoothProfileBlobStorage &storage, uint8_t slot)
 
 void BluetoothProfileRegistry::reset()
 {
-  memset(profiles_, 0, sizeof(profiles_));
+  for (size_t i = 0; i < ProfileCount; ++i)
+    profiles_[i] = BluetoothProfileRecord();
   selectedSlot_ = 1;
 }
 
@@ -150,9 +155,19 @@ bool BluetoothProfileRegistry::setLabel(size_t slot, const char *label)
 {
   if (slot < 1 || slot > ProfileCount) return false;
   size_t length = 0;
-  if (!validUtf8(label, length)) return false;
+  if (!validUtf8(label, BluetoothProfileSnapshot::MaxLabelBytes, length)) return false;
   memset(profiles_[slot - 1].label, 0, sizeof(profiles_[slot - 1].label));
   memcpy(profiles_[slot - 1].label, label, length);
+  return true;
+}
+
+bool BluetoothProfileRegistry::setHostName(size_t slot, const char *hostName)
+{
+  if (slot < 1 || slot > ProfileCount) return false;
+  size_t length = 0;
+  if (!validUtf8(hostName, BluetoothProfileSnapshot::MaxHostNameBytes, length)) return false;
+  memset(profiles_[slot - 1].hostName, 0, sizeof(profiles_[slot - 1].hostName));
+  memcpy(profiles_[slot - 1].hostName, hostName, length);
   return true;
 }
 
@@ -192,6 +207,7 @@ bool BluetoothProfileSettingsCodec::encode(const BluetoothProfileRegistry &regis
     out[o + 1] = p.addressType;
     memcpy(out + o + 2, p.address, sizeof(p.address));
     memcpy(out + o + 20, p.label, sizeof(p.label));
+    memcpy(out + o + 45, p.hostName, sizeof(p.hostName));
   }
   write32(out, kChecksum, crc32(out, kChecksum));
   return true;
@@ -201,22 +217,32 @@ BluetoothProfileSettingsDecodeStatus BluetoothProfileSettingsCodec::decode(
     const uint8_t *data, size_t size, BluetoothProfileRegistry &registry,
     uint32_t &generation)
 {
-  if (data == nullptr || size != EncodedSize || memcmp(data, kMagic, 4) != 0 ||
-      data[6] != (EncodedSize & 0xff) || data[7] != (EncodedSize >> 8) ||
-      read32(data, kChecksum) != crc32(data, kChecksum))
+  if (data == nullptr || (size != EncodedSize && size != kLegacyEncodedSize) ||
+      memcmp(data, kMagic, 4) != 0 ||
+      data[6] != (size & 0xff) || data[7] != (size >> 8))
     return BluetoothProfileSettingsDecodeStatus::Invalid;
-  if (data[4] != RecordVersion) return BluetoothProfileSettingsDecodeStatus::UnsupportedVersion;
+  const bool legacy = size == kLegacyEncodedSize;
+  const size_t checksumOffset = legacy ? kLegacyChecksum : kChecksum;
+  if (read32(data, checksumOffset) != crc32(data, checksumOffset))
+    return BluetoothProfileSettingsDecodeStatus::Invalid;
+  if (data[4] != (legacy ? kLegacyVersion : RecordVersion))
+    return BluetoothProfileSettingsDecodeStatus::UnsupportedVersion;
   BluetoothProfileRegistry next;
   next.reset();
   if (!next.select(data[kSelected])) return BluetoothProfileSettingsDecodeStatus::Invalid;
   for (size_t i = 0; i < BluetoothProfileRegistry::ProfileCount; ++i)
   {
-    const size_t o = kProfiles + i * kStride;
-    if (data[o] > 1 || data[o + 19] != 0 || data[o + 44] != 0)
+    const size_t stride = legacy ? kLegacyStride : kStride;
+    const size_t o = kProfiles + i * stride;
+    if (data[o] > 1 || data[o + 19] != 0 || data[o + 44] != 0 ||
+        (!legacy && data[o + 109] != 0))
       return BluetoothProfileSettingsDecodeStatus::Invalid;
     const char *address = reinterpret_cast<const char *>(data + o + 2);
     const char *label = reinterpret_cast<const char *>(data + o + 20);
     if (!next.setLabel(i + 1, label)) return BluetoothProfileSettingsDecodeStatus::Invalid;
+    if (!legacy && !next.setHostName(
+        i + 1, reinterpret_cast<const char *>(data + o + 45)))
+      return BluetoothProfileSettingsDecodeStatus::Invalid;
     if (data[o] && !next.assign(i + 1, address, data[o + 1]))
       return BluetoothProfileSettingsDecodeStatus::Invalid;
   }

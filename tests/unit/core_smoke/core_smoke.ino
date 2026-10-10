@@ -722,10 +722,18 @@ static void test_bluetooth_profile_settings_persist_labels_and_addresses()
   assert(profiles.select(3));
   assert(profiles.assign(2, "aa:bb:cc:dd:ee:ff", 1));
   assert(profiles.setLabel(2, "Office PC"));
+  const char *hostName64 =
+      "1234567890123456789012345678901234567890123456789012345678901234";
+  assert(strlen(hostName64) == esp32keybridge::BluetoothProfileSnapshot::MaxHostNameBytes);
+  assert(profiles.setHostName(2, hostName64));
   assert(!profiles.setLabel(2, "1234567890123456789012345"));
   assert(!profiles.setLabel(2, "\xc0\x80"));
   assert(!profiles.setLabel(2, "\xed\xa0\x80"));
   assert(!profiles.setLabel(2, "\xf4\x90\x80\x80"));
+  assert(!profiles.setHostName(
+      2, "12345678901234567890123456789012345678901234567890123456789012345"));
+  assert(!profiles.setHostName(2, "\xc0\x80"));
+  assert(strcmp(profiles.profile(2).hostName, hostName64) == 0);
   assert(store.save(profiles));
 
   esp32keybridge::BluetoothProfileRegistry loaded;
@@ -735,12 +743,63 @@ static void test_bluetooth_profile_settings_persist_labels_and_addresses()
   assert(loaded.profile(2).occupied);
   assert(strcmp(loaded.profile(2).address, "AA:BB:CC:DD:EE:FF") == 0);
   assert(strcmp(loaded.profile(2).label, "Office PC") == 0);
+  assert(strcmp(loaded.profile(2).hostName, hostName64) == 0);
+
+  assert(loaded.clear(2));
+  assert(!loaded.profile(2).occupied);
+  assert(strcmp(loaded.profile(2).label, "Office PC") == 0);
+  assert(loaded.profile(2).hostName[0] == '\0');
 
   storage.bytes[0][0] ^= 0xff;
   storage.bytes[1][0] ^= 0xff;
   assert(store.loadOrDefault(loaded) ==
          esp32keybridge::BluetoothProfileSettingsLoadStatus::DefaultsInvalidSettings);
   assert(loaded.selectedSlot() == 1);
+}
+
+static uint32_t bluetooth_profile_test_crc32(const uint8_t *data, size_t size)
+{
+  uint32_t crc = 0xffffffffu;
+  for (size_t i = 0; i < size; ++i)
+  {
+    crc ^= data[i];
+    for (uint8_t bit = 0; bit < 8; ++bit)
+    {
+      const uint32_t mask = 0u - (crc & 1u);
+      crc = (crc >> 1) ^ (0xedb88320u & mask);
+    }
+  }
+  return ~crc;
+}
+
+static void test_bluetooth_profile_settings_migrate_version_1()
+{
+  uint8_t legacy[160] = {};
+  memcpy(legacy, "EKBP", 4);
+  legacy[4] = 1;
+  legacy[6] = 160;
+  legacy[7] = 0;
+  legacy[8] = 42;
+  legacy[12] = 3;
+  const size_t profile = 16 + 45;
+  legacy[profile] = 1;
+  legacy[profile + 1] = 1;
+  memcpy(legacy + profile + 2, "AA:BB:CC:DD:EE:FF", 18);
+  memcpy(legacy + profile + 20, "Legacy PC", 10);
+  const uint32_t checksum = bluetooth_profile_test_crc32(legacy, 156);
+  for (size_t i = 0; i < 4; ++i)
+    legacy[156 + i] = static_cast<uint8_t>(checksum >> (i * 8));
+
+  esp32keybridge::BluetoothProfileRegistry profiles;
+  uint32_t generation = 0;
+  assert(esp32keybridge::BluetoothProfileSettingsCodec::decode(
+             legacy, sizeof(legacy), profiles, generation) ==
+         esp32keybridge::BluetoothProfileSettingsDecodeStatus::Loaded);
+  assert(generation == 42);
+  assert(profiles.selectedSlot() == 3);
+  assert(strcmp(profiles.profile(2).address, "AA:BB:CC:DD:EE:FF") == 0);
+  assert(strcmp(profiles.profile(2).label, "Legacy PC") == 0);
+  assert(profiles.profile(2).hostName[0] == '\0');
 }
 
 static void test_settings_navigation_captures_and_suppresses_until_release()
@@ -2916,6 +2975,7 @@ static void runAllTests()
   run("dvorak_modifier_policy_controls_conversion", test_dvorak_modifier_policy_controls_conversion);
   run("bluetooth_slot_names_append_selected_slot", test_bluetooth_slot_names_append_selected_slot);
   run("bluetooth_profile_settings_persist_labels_and_addresses", test_bluetooth_profile_settings_persist_labels_and_addresses);
+  run("bluetooth_profile_settings_migrate_version_1", test_bluetooth_profile_settings_migrate_version_1);
   run("settings_navigation_captures_and_suppresses_until_release", test_settings_navigation_captures_and_suppresses_until_release);
   run("settings_navigation_actions_and_bounded_queue", test_settings_navigation_actions_and_bounded_queue);
   run("key_identity_is_kind_plus_code", test_key_identity_is_kind_plus_code);

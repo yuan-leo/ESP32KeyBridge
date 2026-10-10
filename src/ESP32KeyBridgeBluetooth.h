@@ -89,8 +89,10 @@ enum class BluetoothProfileDisplayState : uint8_t
 struct BluetoothProfileSnapshot
 {
   static constexpr size_t MaxLabelBytes = 24;
+  static constexpr size_t MaxHostNameBytes = 64;
   size_t slot = 0;
   char label[MaxLabelBytes + 1] = {};
+  char hostName[MaxHostNameBytes + 1] = {};
   char address[18] = {};
   bool occupied = false;
   bool selected = false;
