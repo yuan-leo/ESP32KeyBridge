@@ -5,6 +5,12 @@
 #include <ESP32KeyBridgeBluetoothSettings.h>
 #include <EspBle.h>
 
+// EspBle's connection callbacks report the over-the-air (possibly rotating
+// private) address. A bonded host must be identified by NimBLE's resolved
+// peer_id_addr instead; this is the same identity used by EspBle::bond().
+#include <host/ble_gap.h>
+
+#include <stdio.h>
 #include <string.h>
 
 // BLE adapters backed by the EspBle library: a HID over GATT output
@@ -68,7 +74,28 @@ public:
     // that a host has spoken at least once, which ledState() cannot express
     // (no report yet and "all LEDs off" look the same).
     ble_.hidKeyboard().onOutputReport(
-        [this](const EspBleHidKeyboardOutputReport &) { ledSeen_ = true; });
+        [this](const EspBleHidKeyboardOutputReport &report) {
+          if (report.connectionId == peripheralConnectionId_) ledSeen_ = true;
+        });
+    connectedListener_ = ble_.addConnectedListener(
+        [this](const EspBleConnection &connection) {
+          if (connection.localRole != EspBleRole::Peripheral) return;
+          peripheralConnectionId_ = connection.id;
+          resetSession();
+        });
+    disconnectedListener_ = ble_.addDisconnectedListener(
+        [this](const EspBleConnection &connection) {
+          if (connection.id != peripheralConnectionId_) return;
+          peripheralConnectionId_ = 0;
+          resetSession();
+        });
+  }
+
+  ~EspBleHidOutputAdapter() override
+  {
+    ble_.removeConnectionListener(connectedListener_);
+    ble_.removeConnectionListener(disconnectedListener_);
+    ble_.hidKeyboard().onOutputReport({});
   }
 
   // Packs the key set into keyboard, consumer, and mouse-button reports.
@@ -156,7 +183,7 @@ private:
     const bool moved = report.x != 0 || report.y != 0 || report.wheel != 0;
     // lastMouseButtons_ tracks the last successful send, so a failed button
     // change keeps mismatching and retries on the next update.
-    if (!moved && report.buttons == lastMouseButtons_)
+    if (!mousePending_ && !moved && report.buttons == lastMouseButtons_)
     {
       return;
     }
@@ -169,6 +196,7 @@ private:
     if (ble_.hidMouse().sendReport(bleReport))
     {
       lastMouseButtons_ = report.buttons;
+      mousePending_ = false;
     }
     else
     {
@@ -179,12 +207,31 @@ private:
     }
   }
 
+  void resetSession()
+  {
+    // Each HID host starts with an independent report/LED state. The bridge
+    // can already hold keys when a new host subscribes, so force a complete
+    // first snapshot even if it equals the previous host's last report.
+    lastKeyboardReport_ = EspBleHidKeyboardReport();
+    keyboardPending_ = true;
+    lastConsumerUsage_ = 0;
+    consumerPending_ = true;
+    lastMouseButtons_ = 0;
+    mousePending_ = true;
+    ledSeen_ = false;
+    for (size_t i = 0; i < kAxisCount; ++i) pendingAxis_[i] = 0;
+  }
+
   EspBle &ble_;
+  EspBleConnectionId peripheralConnectionId_ = 0;
+  EspBleListenerId connectedListener_ = EspBleInvalidListenerId;
+  EspBleListenerId disconnectedListener_ = EspBleInvalidListenerId;
   EspBleHidKeyboardReport lastKeyboardReport_;
   bool keyboardPending_ = false;
   uint16_t lastConsumerUsage_ = 0;
   bool consumerPending_ = false;
   uint8_t lastMouseButtons_ = 0;
+  bool mousePending_ = true;
   int32_t pendingAxis_[kAxisCount] = {};
   bool ledSeen_ = false;
 };
@@ -244,7 +291,6 @@ public:
   bool loadProfileSettings()
   {
     if (profilesLoaded_) return true;
-    profilesLoaded_ = true;
     if (profileStore_ != nullptr)
     {
       const BluetoothProfileSettingsLoadStatus result =
@@ -255,10 +301,33 @@ public:
         return false;
       }
     }
+    profilesLoaded_ = true;
     selectedSlot_ = registry_.selectedSlot();
     slotsLoaded_ = false;
     loadSlots();
-    return true;
+    return status_ != BluetoothTargetStatus::Failed;
+  }
+
+  // Resume the saved bonded target on boot, never ordinary discoverable
+  // advertising. An empty selected slot remains idle until explicit Pair.
+  bool resumeSelectedSlot()
+  {
+    if (!loadProfileSettings()) return false;
+    loadSlots();
+    ble_.advertising().stop();
+    if (!slotUsed_[selectedSlot_ - 1])
+    {
+      ble_.advertising().clearDirectedTarget();
+      operation_ = BluetoothProfileOperation::None;
+      status_ = BluetoothTargetStatus::Idle;
+      return true;
+    }
+    targetBond_ = slots_[selectedSlot_ - 1];
+    status_ = BluetoothTargetStatus::Switching;
+    operation_ = BluetoothProfileOperation::Connecting;
+    pending_ = Pending::DirectedAdvertising;
+    reconnectDeadline_.start(millis(), ReconnectTimeoutMs);
+    return startPending();
   }
 
   void update() override
@@ -293,7 +362,7 @@ public:
   }
 
   // Applies the selected slot suffix to EspBle's advertising name. Call once
-  // after ble.begin() and before the sketch's initial advertising start;
+  // after ble.begin() and before resumeSelectedSlot();
   // reconnect and pairing paths call it automatically afterwards.
   bool applySelectedSlotName()
   {

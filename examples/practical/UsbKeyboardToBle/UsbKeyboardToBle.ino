@@ -144,7 +144,11 @@ void setup()
     Serial.println("BLE slot name is too long");
     return;
   }
-  ble.advertising().start();
+  if (!bluetoothTargets.resumeSelectedSlot())
+  {
+    Serial.println("BLE could not resume the selected profile");
+    return;
+  }
 
   // 2) Load the persisted layout settings, then wire the bridge: USB keyboard
   // + target hotkeys in, BLE HID out. Every physical USB keyboard merged by
