@@ -278,19 +278,10 @@ public:
         dnsServer_.processNextRequest();
       }
       server_.handleClient();
-      if (reset_ != nullptr) reset_->update();
-      if (rebootPending_ && reset_ != nullptr && reset_->completed())
+      if (rebootPending_ &&
+          static_cast<uint32_t>(millis() - rebootRequestedMs_) >= 1000)
       {
-        if (reset_->succeeded() &&
-            static_cast<uint32_t>(millis() - rebootRequestedMs_) >= 1000)
-        {
-          ESP.restart();
-        }
-        else if (!reset_->succeeded())
-        {
-          rebootPending_ = false;
-          reset_->finish();
-        }
+        ESP.restart();
       }
       if (navigationLeaseActive_ &&
           static_cast<uint32_t>(millis() - lastNavigationPollMs_) >

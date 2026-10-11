@@ -171,9 +171,6 @@ public:
   virtual bool setSlotLabel(size_t, const char *) { return false; }
   virtual bool forceDisconnect() { return false; }
   virtual bool resetBluetooth() { return false; }
-  // Reset may be accepted before an active BLE link disconnects.
-  virtual bool resetComplete() const { return true; }
-  virtual bool resetSucceeded() const { return true; }
   virtual bool busy() const
   {
     return status() == BluetoothTargetStatus::Switching ||

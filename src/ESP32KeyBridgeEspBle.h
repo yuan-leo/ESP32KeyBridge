@@ -5,12 +5,6 @@
 #include <ESP32KeyBridgeBluetoothSettings.h>
 #include <EspBle.h>
 
-// EspBle's connection callbacks report the over-the-air (possibly rotating
-// private) address. A bonded host must be identified by NimBLE's resolved
-// peer_id_addr instead; this is the same identity used by EspBle::bond().
-#include <host/ble_gap.h>
-
-#include <stdio.h>
 #include <string.h>
 
 // BLE adapters backed by the EspBle library: a HID over GATT output
@@ -74,28 +68,7 @@ public:
     // that a host has spoken at least once, which ledState() cannot express
     // (no report yet and "all LEDs off" look the same).
     ble_.hidKeyboard().onOutputReport(
-        [this](const EspBleHidKeyboardOutputReport &report) {
-          if (report.connectionId == peripheralConnectionId_) ledSeen_ = true;
-        });
-    connectedListener_ = ble_.addConnectedListener(
-        [this](const EspBleConnection &connection) {
-          if (connection.localRole != EspBleRole::Peripheral) return;
-          peripheralConnectionId_ = connection.id;
-          resetSession();
-        });
-    disconnectedListener_ = ble_.addDisconnectedListener(
-        [this](const EspBleConnection &connection) {
-          if (connection.id != peripheralConnectionId_) return;
-          peripheralConnectionId_ = 0;
-          resetSession();
-        });
-  }
-
-  ~EspBleHidOutputAdapter() override
-  {
-    ble_.removeConnectionListener(connectedListener_);
-    ble_.removeConnectionListener(disconnectedListener_);
-    ble_.hidKeyboard().onOutputReport({});
+        [this](const EspBleHidKeyboardOutputReport &) { ledSeen_ = true; });
   }
 
   // Packs the key set into keyboard, consumer, and mouse-button reports.
@@ -183,7 +156,7 @@ private:
     const bool moved = report.x != 0 || report.y != 0 || report.wheel != 0;
     // lastMouseButtons_ tracks the last successful send, so a failed button
     // change keeps mismatching and retries on the next update.
-    if (!mousePending_ && !moved && report.buttons == lastMouseButtons_)
+    if (!moved && report.buttons == lastMouseButtons_)
     {
       return;
     }
@@ -196,7 +169,6 @@ private:
     if (ble_.hidMouse().sendReport(bleReport))
     {
       lastMouseButtons_ = report.buttons;
-      mousePending_ = false;
     }
     else
     {
@@ -207,31 +179,12 @@ private:
     }
   }
 
-  void resetSession()
-  {
-    // Each HID host starts with an independent report/LED state. The bridge
-    // can already hold keys when a new host subscribes, so force a complete
-    // first snapshot even if it equals the previous host's last report.
-    lastKeyboardReport_ = EspBleHidKeyboardReport();
-    keyboardPending_ = true;
-    lastConsumerUsage_ = 0;
-    consumerPending_ = true;
-    lastMouseButtons_ = 0;
-    mousePending_ = true;
-    ledSeen_ = false;
-    for (size_t i = 0; i < kAxisCount; ++i) pendingAxis_[i] = 0;
-  }
-
   EspBle &ble_;
-  EspBleConnectionId peripheralConnectionId_ = 0;
-  EspBleListenerId connectedListener_ = EspBleInvalidListenerId;
-  EspBleListenerId disconnectedListener_ = EspBleInvalidListenerId;
   EspBleHidKeyboardReport lastKeyboardReport_;
   bool keyboardPending_ = false;
   uint16_t lastConsumerUsage_ = 0;
   bool consumerPending_ = false;
   uint8_t lastMouseButtons_ = 0;
-  bool mousePending_ = true;
   int32_t pendingAxis_[kAxisCount] = {};
   bool ledSeen_ = false;
 };
@@ -291,6 +244,7 @@ public:
   bool loadProfileSettings()
   {
     if (profilesLoaded_) return true;
+    profilesLoaded_ = true;
     if (profileStore_ != nullptr)
     {
       const BluetoothProfileSettingsLoadStatus result =
@@ -301,53 +255,19 @@ public:
         return false;
       }
     }
-    profilesLoaded_ = true;
     selectedSlot_ = registry_.selectedSlot();
     slotsLoaded_ = false;
     loadSlots();
-    return status_ != BluetoothTargetStatus::Failed;
-  }
-
-  // Resume the saved bonded target on boot, never ordinary discoverable
-  // advertising. An empty selected slot remains idle until explicit Pair.
-  bool resumeSelectedSlot()
-  {
-    if (!loadProfileSettings()) return false;
-    loadSlots();
-    ble_.advertising().stop();
-    if (!slotUsed_[selectedSlot_ - 1])
-    {
-      ble_.advertising().clearDirectedTarget();
-      operation_ = BluetoothProfileOperation::None;
-      status_ = BluetoothTargetStatus::Idle;
-      return true;
-    }
-    targetBond_ = slots_[selectedSlot_ - 1];
-    status_ = BluetoothTargetStatus::Switching;
-    operation_ = BluetoothProfileOperation::Connecting;
-    pending_ = Pending::DirectedAdvertising;
-    reconnectDeadline_.start(millis(), ReconnectTimeoutMs);
-    return startPending();
+    return true;
   }
 
   void update() override
   {
-    if (!loadProfileSettings()) return;
-    if (operation_ == BluetoothProfileOperation::Connecting &&
-        peripheralConnectionId_ != 0 && linkSecured_ &&
-        ble_.hidKeyboard().ready())
-    {
-      reconnectDeadline_.cancel();
-      operation_ = BluetoothProfileOperation::None;
-      status_ = BluetoothTargetStatus::Connected;
-      clearError();
-    }
+    loadProfileSettings();
     if (reconnectDeadline_.expired(millis()))
     {
       reconnectDeadline_.cancel();
       ble_.advertising().stop();
-      suppressReconnect_ = true;
-      if (peripheralConnectionId_ != 0) ble_.disconnect(peripheralConnectionId_);
       pending_ = Pending::None;
       operation_ = BluetoothProfileOperation::None;
       status_ = BluetoothTargetStatus::Idle;
@@ -373,7 +293,7 @@ public:
   }
 
   // Applies the selected slot suffix to EspBle's advertising name. Call once
-  // after ble.begin() and before resumeSelectedSlot();
+  // after ble.begin() and before the sketch's initial advertising start;
   // reconnect and pairing paths call it automatically afterwards.
   bool applySelectedSlotName()
   {
@@ -416,14 +336,9 @@ public:
     }
     if (!slotUsed_[slot - 1])
     {
-      // An empty slot cannot retain the previous host's active link.
-      ble_.advertising().stop();
-      pending_ = Pending::None;
-      suppressReconnect_ = true;
       operation_ = BluetoothProfileOperation::None;
-      status_ = BluetoothTargetStatus::Idle;
-      if (peripheralConnectionId_ != 0 && !ble_.disconnect(peripheralConnectionId_))
-        return fail("disconnect_failed");
+      status_ = peripheralConnectionId_ != 0 ? BluetoothTargetStatus::Connected
+                                              : BluetoothTargetStatus::Idle;
       return applySelectedSlotName();
     }
     targetBond_ = slots_[slot - 1];
@@ -437,12 +352,8 @@ public:
       if (peripheralAddress_.equalsIgnoreCase(targetBond_.peerAddress))
       {
         pending_ = Pending::None;
-        if (linkSecured_ && ble_.hidKeyboard().ready())
-        {
-          status_ = BluetoothTargetStatus::Connected;
-          operation_ = BluetoothProfileOperation::None;
-        }
-        else reconnectDeadline_.start(millis(), ReconnectTimeoutMs);
+        status_ = BluetoothTargetStatus::Connected;
+        operation_ = BluetoothProfileOperation::None;
         return true;
       }
       if (!ble_.disconnect(peripheralConnectionId_))
@@ -501,7 +412,6 @@ public:
     if (status_ != BluetoothTargetStatus::Pairing) return reject("not_pairing");
     ble_.advertising().stop();
     pending_ = Pending::None;
-    suppressReconnect_ = true;
     if (pairingConnectionId_ != 0)
     {
       cancellingDisconnect_ = true;
@@ -594,8 +504,6 @@ public:
 
   bool resetBluetooth() override
   {
-    resetInProgress_ = true;
-    resetSucceeded_ = false;
     ble_.advertising().stop();
     reconnectDeadline_.cancel();
     pending_ = Pending::None;
@@ -611,7 +519,6 @@ public:
       {
         resetAfterDisconnect_ = false;
         forceStopDisconnect_ = false;
-        resetInProgress_ = false;
         return fail("disconnect_failed");
       }
       return true;
@@ -631,17 +538,12 @@ public:
       slotUsed_[i] = false;
       slots_[i] = EspBleBond();
     }
-    resetInProgress_ = false;
     if (!bondsCleared) return fail("bond_delete_failed");
     if (!profilesCleared) return fail("profile_storage_write_failed");
-    resetSucceeded_ = true;
     operation_ = BluetoothProfileOperation::None;
     status_ = BluetoothTargetStatus::Idle;
     return true;
   }
-
-  bool resetComplete() const override { return !resetAfterDisconnect_ && !resetInProgress_; }
-  bool resetSucceeded() const override { return resetSucceeded_; }
 
   bool busy() const override
   {
@@ -714,8 +616,7 @@ private:
       {
         return fail("directed_advertising_failed");
       }
-      if (!reconnectDeadline_.active())
-        reconnectDeadline_.start(millis(), ReconnectTimeoutMs);
+      reconnectDeadline_.start(millis(), ReconnectTimeoutMs);
       return true;
     }
 
@@ -730,8 +631,6 @@ private:
       registry_.clear(selectedSlot_);
       if (!saveRegistry()) return fail("profile_storage_write_failed");
       ble_.advertising().clearDirectedTarget();
-      reconnectDeadline_.cancel();
-      suppressReconnect_ = false;
       if (!applySelectedSlotName() || !ble_.advertising().start())
       {
         return fail("pairing_advertising_failed");
@@ -763,28 +662,6 @@ private:
     return true;
   }
 
-  static String identityAddress(const EspBleConnection &connection)
-  {
-    // NimBLE resolves the identity as part of GAP connection description.
-    // Use the bond key's identity address (peer_id_addr), not peer_ota_addr.
-    ble_gap_conn_desc desc = {};
-    if (ble_gap_conn_find(connection.handle, &desc) != 0)
-      return connection.peerAddress;
-    char address[18];
-    const uint8_t *p = desc.peer_id_addr.val;
-    snprintf(address, sizeof(address), "%02X:%02X:%02X:%02X:%02X:%02X",
-             p[5], p[4], p[3], p[2], p[1], p[0]);
-    return String(address);
-  }
-
-  static EspBleAddressType identityType(const EspBleConnection &connection)
-  {
-    ble_gap_conn_desc desc = {};
-    return ble_gap_conn_find(connection.handle, &desc) == 0
-        ? static_cast<EspBleAddressType>(desc.peer_id_addr.type)
-        : connection.peerAddressType;
-  }
-
   void handleConnected(const EspBleConnection &connection)
   {
     if (connection.localRole != EspBleRole::Peripheral)
@@ -792,9 +669,9 @@ private:
       return;
     }
     peripheralConnectionId_ = connection.id;
-    peripheralAddress_ = identityAddress(connection);
-    linkSecured_ = connection.encrypted && connection.bonded;
-    // Keep the reconnect deadline active until the expected host is HID-ready.
+    peripheralAddress_ = connection.peerAddress;
+    reconnectDeadline_.cancel();
+    suppressReconnect_ = false;
     loadSlots();
     size_t existingSlot = MaxSlots;
     for (size_t i = 0; i < MaxSlots; ++i)
@@ -820,21 +697,17 @@ private:
     }
     if (existingSlot < MaxSlots && status_ != BluetoothTargetStatus::Pairing)
     {
-      // Do not silently change the persisted selected target.
-      if (existingSlot + 1 != selectedSlot_)
-      {
-        ble_.disconnect(connection.id);
-        return;
-      }
+      selectedSlot_ = existingSlot + 1;
     }
     else if (status_ == BluetoothTargetStatus::Pairing)
     {
       pairingConnectionId_ = connection.id;
     }
     if (status_ == BluetoothTargetStatus::Switching &&
-        !peripheralAddress_.equalsIgnoreCase(targetBond_.peerAddress))
+        peripheralAddress_.equalsIgnoreCase(targetBond_.peerAddress))
     {
-      ble_.disconnect(connection.id);
+      status_ = BluetoothTargetStatus::Connected;
+      operation_ = BluetoothProfileOperation::None;
     }
   }
 
@@ -846,10 +719,7 @@ private:
     }
     peripheralConnectionId_ = 0;
     peripheralAddress_ = "";
-    linkSecured_ = false;
-    // Preserve the current reconnect deadline across an unexpected link.
-    if (operation_ != BluetoothProfileOperation::Connecting)
-      reconnectDeadline_.cancel();
+    reconnectDeadline_.cancel();
     if (resetAfterDisconnect_)
     {
       resetAfterDisconnect_ = false;
@@ -896,8 +766,10 @@ private:
     else
     {
       ble_.advertising().clearDirectedTarget();
-      operation_ = BluetoothProfileOperation::None;
-      status_ = BluetoothTargetStatus::Idle;
+      if (!applySelectedSlotName() || !ble_.advertising().start())
+      {
+        status_ = BluetoothTargetStatus::Failed;
+      }
     }
   }
 
@@ -906,18 +778,6 @@ private:
     if (event.connection.localRole != EspBleRole::Peripheral)
     {
       return;
-    }
-    if (event.connection.id == peripheralConnectionId_)
-    {
-      linkSecured_ = event.success && event.connection.encrypted &&
-                     event.connection.bonded;
-      peripheralAddress_ = identityAddress(event.connection);
-      if (operation_ == BluetoothProfileOperation::Connecting &&
-          (!linkSecured_ || !peripheralAddress_.equalsIgnoreCase(targetBond_.peerAddress)))
-      {
-        ble_.disconnect(event.connection.id);
-        return;
-      }
     }
     if (status_ == BluetoothTargetStatus::Idle && event.success && event.connection.bonded)
     {
@@ -930,11 +790,7 @@ private:
         if (slotUsed_[i] &&
             event.connection.peerAddress.equalsIgnoreCase(slots_[i].peerAddress))
         {
-          if (i + 1 != selectedSlot_)
-          {
-            ble_.disconnect(event.connection.id);
-            break;
-          }
+          selectedSlot_ = i + 1;
           status_ = BluetoothTargetStatus::Connected;
           requestHostName();
           break;
@@ -953,43 +809,11 @@ private:
     if (event.success && event.connection.bonded)
     {
       const size_t index = selectedSlot_ - 1;
-      // EspBle's bond enumeration has the stable peer identity. Do not
-      // reconcile first here: that would assign this newly paired host to
-      // the *first* empty profile instead of the explicitly chosen slot.
-      const String bondedIdentity = identityAddress(event.connection);
-      const EspBleAddressType bondedType = identityType(event.connection);
-      EspBleBond newBond;
-      bool foundBond = false;
-      for (size_t i = 0; i < ble_.bondCount(); ++i)
-      {
-        EspBleBond candidate;
-        if (!ble_.bond(i, candidate)) continue;
-        if (candidate.peerAddress.equalsIgnoreCase(bondedIdentity) &&
-            candidate.peerAddressType == bondedType)
-        {
-          newBond = candidate;
-          foundBond = true;
-          break;
-        }
-      }
-      if (!foundBond)
-      {
-        fail("bond_identity_not_found");
-        return;
-      }
-      for (size_t i = 0; i < MaxSlots; ++i)
-      {
-        if (i != index && slotUsed_[i] &&
-            slots_[i].peerAddress.equalsIgnoreCase(newBond.peerAddress))
-        {
-          fail("bond_slot_conflict");
-          return;
-        }
-      }
+      slots_[index].peerAddress = event.connection.peerAddress;
+      slots_[index].peerAddressType = event.connection.peerAddressType;
       slotUsed_[index] = true;
-      slots_[index] = newBond;
-      if (!registry_.assign(selectedSlot_, newBond.peerAddress.c_str(),
-                            static_cast<uint8_t>(newBond.peerAddressType)) ||
+      if (!registry_.assign(selectedSlot_, event.connection.peerAddress.c_str(),
+                            static_cast<uint8_t>(event.connection.peerAddressType)) ||
           !saveRegistry())
       {
         fail("profile_storage_write_failed");
@@ -1140,10 +964,7 @@ private:
   bool cancellingDisconnect_ = false;
   bool forceStopDisconnect_ = false;
   bool resetAfterDisconnect_ = false;
-  bool resetInProgress_ = false;
-  bool resetSucceeded_ = false;
   bool suppressReconnect_ = false;
-  bool linkSecured_ = false;
   size_t deleteSlot_ = 0;
   size_t reconnectSlot_ = 0;
   uint32_t pairingStartedMs_ = 0;

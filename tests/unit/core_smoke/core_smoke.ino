@@ -956,8 +956,6 @@ public:
   bool setSlotLabel(size_t, const char *) override { return true; }
   bool forceDisconnect() override { ++forceDisconnectCalls; return true; }
   bool resetBluetooth() override { ++resetBluetoothCalls; return resetAccept; }
-  bool resetComplete() const override { return resetReady; }
-  bool resetSucceeded() const override { return resetOkay; }
   bool busy() const override { return false; }
 
   size_t slots = 3;
@@ -970,8 +968,6 @@ public:
   uint32_t now = 0;
   bool accept = true;
   bool resetAccept = true;
-  bool resetReady = true;
-  bool resetOkay = true;
   esp32keybridge::BluetoothTargetSnapshot snapshotValue;
   esp32keybridge::BluetoothTargetStatus state =
       esp32keybridge::BluetoothTargetStatus::Idle;
@@ -1041,37 +1037,6 @@ static void test_settings_reset_coordinator_scopes_and_failures()
   macroStorage.eraseFails[0] = true;
   assert(!reset.reset(esp32keybridge::SettingsResetScope::Everything, &error));
   assert(error.code == esp32keybridge::SettingsResetErrorCode::MacroStorageFailed);
-  macroStorage.eraseFails[0] = false;
-
-  // Resetting an active BLE link finishes asynchronously. Until the BLE stack
-  // reports that bonds were actually erased, other settings must stay intact.
-  layoutStorage.present[0] = true;
-  macroStorage.present[0] = true;
-  target.resetReady = false;
-  assert(reset.reset(esp32keybridge::SettingsResetScope::Everything, &error));
-  assert(reset.inProgress());
-  assert(!reset.completed());
-  reset.update();
-  assert(layoutStorage.present[0] && macroStorage.present[0]);
-  target.resetReady = true;
-  target.resetOkay = true;
-  reset.update();
-  assert(reset.completed() && reset.succeeded());
-  assert(!layoutStorage.present[0] && !macroStorage.present[0]);
-  reset.finish();
-
-  // Failure during the delayed BLE operation must not trigger reboot or
-  // remove otherwise intact layout/macro records.
-  layoutStorage.present[0] = true;
-  macroStorage.present[0] = true;
-  target.resetReady = false;
-  target.resetOkay = false;
-  assert(reset.reset(esp32keybridge::SettingsResetScope::Everything, &error));
-  target.resetReady = true;
-  reset.update();
-  assert(reset.completed() && !reset.succeeded());
-  assert(layoutStorage.present[0] && macroStorage.present[0]);
-  reset.finish();
 }
 
 static void test_bluetooth_status_led_legend_frames()
