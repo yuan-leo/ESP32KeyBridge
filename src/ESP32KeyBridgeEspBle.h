@@ -953,22 +953,43 @@ private:
     if (event.success && event.connection.bonded)
     {
       const size_t index = selectedSlot_ - 1;
-      // The bond store exposes the resolved identity, not a rotating RPA.
-      slotsLoaded_ = false;
-      loadSlots();
+      // EspBle's bond enumeration has the stable peer identity. Do not
+      // reconcile first here: that would assign this newly paired host to
+      // the *first* empty profile instead of the explicitly chosen slot.
       const String bondedIdentity = identityAddress(event.connection);
-      int bondedSlot = registry_.findAddress(bondedIdentity.c_str(),
-          static_cast<uint8_t>(identityType(event.connection)));
-      if (bondedSlot > 0 && static_cast<size_t>(bondedSlot) != selectedSlot_)
+      const EspBleAddressType bondedType = identityType(event.connection);
+      EspBleBond newBond;
+      bool foundBond = false;
+      for (size_t i = 0; i < ble_.bondCount(); ++i)
       {
-        fail("bond_slot_conflict");
+        EspBleBond candidate;
+        if (!ble_.bond(i, candidate)) continue;
+        if (candidate.peerAddress.equalsIgnoreCase(bondedIdentity) &&
+            candidate.peerAddressType == bondedType)
+        {
+          newBond = candidate;
+          foundBond = true;
+          break;
+        }
+      }
+      if (!foundBond)
+      {
+        fail("bond_identity_not_found");
         return;
       }
+      for (size_t i = 0; i < MaxSlots; ++i)
+      {
+        if (i != index && slotUsed_[i] &&
+            slots_[i].peerAddress.equalsIgnoreCase(newBond.peerAddress))
+        {
+          fail("bond_slot_conflict");
+          return;
+        }
+      }
       slotUsed_[index] = true;
-      slots_[index].peerAddress = bondedIdentity;
-      slots_[index].peerAddressType = identityType(event.connection);
-      if (!registry_.assign(selectedSlot_, bondedIdentity.c_str(),
-                            static_cast<uint8_t>(identityType(event.connection))) ||
+      slots_[index] = newBond;
+      if (!registry_.assign(selectedSlot_, newBond.peerAddress.c_str(),
+                            static_cast<uint8_t>(newBond.peerAddressType)) ||
           !saveRegistry())
       {
         fail("profile_storage_write_failed");
