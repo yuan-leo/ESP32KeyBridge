@@ -56,6 +56,7 @@ private:
   bool completed_ = false;
   bool succeeded_ = false;
   SettingsResetScope pendingScope_ = SettingsResetScope::BluetoothOnly;
+  SettingsResetErrorCode failureCode_ = SettingsResetErrorCode::None;
 };
 
 } // namespace esp32keybridge
